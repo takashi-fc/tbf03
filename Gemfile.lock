@@ -1,0 +1,21 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    md2review (1.11.0)
+      redcarpet (> 2.0.0)
+    redcarpet (3.4.0)
+    review (2.3.0)
+      rouge
+      rubyzip
+    rouge (2.1.1)
+    rubyzip (1.2.1)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  md2review
+  review
+
+BUNDLED WITH
+   1.15.3
