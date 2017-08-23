@@ -8,7 +8,7 @@ if [ -z $1 ] ; then
 fi
 
 cd articles
-FILENAME="md/$1".md
+FILENAME="$1".md
 if [ ! -f $FILENAME ] ; then
   echo $FILENAME"は存在しません"
   exit 1;
@@ -16,5 +16,6 @@ fi
 
 set -ux
 md2review $FILENAME > $1.re
+sed -i -e "s/emlist\[\]\[\(.*\)\]/list[\1][\1]/" $1.re
 review-pdfmaker config.yml
 open tbf03.pdf

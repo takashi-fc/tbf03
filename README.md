@@ -35,7 +35,7 @@
 1. 内容を書くMarkdownファイルを作成する
 
 ```
-touch articles/md/filename.md
+touch articles/filename.md
 ```
 
 2. 自分の書いた記事を追記する。
@@ -47,6 +47,12 @@ vim articles/catalog.yml
 ```
 
 3. 後は記事を書きながらRe:Viewでコンパイルして確認
+
+サンプルとして`test.md`にいくつか記法が書いてます。
+
+- 脚注
+- 画像
+- コード
 
 ```
 # markdownで書いていた場合、Re:View形式に変換して、コンパイル
