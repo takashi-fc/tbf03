@@ -114,48 +114,175 @@ Observable.of(1, 2, 3)
 
 #### Schedulerの種類
 
-// TODO: 動作内容書く
 | Scheduler | 動作 |
 |:--------:|-----|
-| MainScheduler | |
-| ConcurrentMainScheduler | |
-| SerialDispatchQueueScheduler | |
-| ConcurrentDispatchQueueScheduler | |
+| MainScheduler | メインスレッドで動きます ※observeOnに最適化されています |
+| ConcurrentMainScheduler | メインスレッドで動きます ※subscribeOnに最適化されています |
+| CurrentThreadScheduler | 現在のスレッドで動きます |
+| SerialDispatchQueueScheduler | 指定されたQOSで生成された直列なQueueで動きます |
+| ConcurrentDispatchQueueScheduler | 指定されたQOSで生成された並列なQueueで動きます |
 
-それぞれ`DispatchQueue`を持つ仕組みになっていて、引数として`DispatchQoS`を渡すものと`DispatchQueue`を渡すものがありますが、`DispatchQoS`を渡した場合は、それをパラメータとして`DispatchQueue`を生成しているので、どちらもスレッドに関しては同様の動作をします。
-実際のコードはこのような感じになっていて、意図しない動作を減らすために`DispatchQoS`を渡すイニシャライザを利用する方が良いと思います。
-
-```ConcurrentDispatchQueueScheduler.swift
-public init(queue: DispatchQueue, leeway: DispatchTimeInterval = DispatchTimeInterval.nanoseconds(0)) {
-    configuration = DispatchQueueConfiguration(queue: queue, leeway: leeway)
-}
-
-@available(iOS 8, OSX 10.10, *)
-public convenience init(qos: DispatchQoS, leeway: DispatchTimeInterval = DispatchTimeInterval.nanoseconds(0)) {
-    self.init(queue: DispatchQueue(
-        label: "rxswift.queue.\(qos)",
-        qos: qos,
-        attributes: [DispatchQueue.Attributes.concurrent],
-        target: nil),
-        leeway: leeway
-    )
-}
-```
+それぞれ`DispatchQueue`を持つ仕組みになっていて、イニシャライザには引数として`DispatchQoS`を渡すものと`DispatchQueue`を渡すものがあります。
+`DispatchQoS`を引数として渡すイニシャライザは`iOS8`から追加されていて、指定したいラベルがあるなどのことがなければ`DispatchQueue`を渡すのではなく、`DispatchQoS`を渡す方が良いです。
 
 #### Schedulerで注意すべきこと
 
-http://hadashia.hatenablog.com/entry/2016/03/17/212413
-
 Conccurent（並列）な`Scheduler`で処理されていても、1つの`Observable`によって流れる値は順序が保証されています。
-複数の`Observable`は干渉しないため、それぞれをConccurent（並列）な`Scheduler`を指定すれば、意図通り並列で動きます。
-https://github.com/ReactiveX/RxSwift/blob/master/Documentation/GettingStarted.md#implicit-observable-guarantees // TODO: ソースこれであってる？
+そのため、このコードのようにスリープを挟んでも実行すると下記のように出力されます。
 
-逆に、複数の`Observable`を直列な`Scheduler`で実行するとどうなるでしょうか？
-// TODO: .zip系は中を同じスレッドで走らせると遅くなる？のでその動きを調べる
+```
+let observeOnScheduler = ConcurrentDispatchQueueScheduler(qos: .default)
 
-また、大事なのが`Observable`を`subscribe`した時、`observeOn`,`subscribeOn`で`Scheduler`を指定していない場合は今いるスレッドで実行するということです。
-つまり、何も考えずにメインスレッドで動いている処理中に`subscribe`してしまうと、重い`Operator`の処理をメインスレッドで処理してい、描画やユーザの操作をブロックしてしまいます。
+var count = 0
+Observable.from(1...3)
+    .observeOn(observeOnScheduler)
+    .do(onNext: { i in
+        let time = arc4random_uniform(3) + 1 // 1~3秒のスリープ
+        print("observable sleep \(time)")
+        sleep(time)
+        count += 1
+        print("observable \(i): \(count)")
+    }, onError: nil, onCompleted: nil, onSubscribe: nil, onSubscribed: nil, onDispose: nil)
+    .subscribe()
 
+// 出力
+A observable sleep 2
+A observable 1: 1
+A observable sleep 1
+A observable 2: 2
+A observable sleep 1
+A observable 3: 3
+```
+
+では、先程のスケジューラで2つのObservableをsubscribeしたらどうなるでしょうか？
+
+```
+let observeOnScheduler = ConcurrentDispatchQueueScheduler(qos: .default)
+
+var count = 0
+Observable.from(1...3)
+    .observeOn(observeOnScheduler)
+    .do(onNext: { i in
+        let time = arc4random_uniform(3) + 1
+        print("A observable sleep \(time)")
+        sleep(time)
+        count += 1
+        print("A observable \(i): \(count)")
+    }, onError: nil, onCompleted: nil, onSubscribe: nil, onSubscribed: nil, onDispose: nil)
+    .subscribe()
+
+Observable.from(4...6)
+    .observeOn(observeOnScheduler)
+    .do(onNext: { i in
+        let time = arc4random_uniform(3) + 1
+        print("B observable sleep \(time)")
+        sleep(time)
+        count += 1
+        print("B observable \(i): \(count)")
+    }, onError: nil, onCompleted: nil, onSubscribe: nil, onSubscribed: nil, onDispose: nil)
+    .subscribe()
+
+// 出力
+B observable sleep 2
+A observable sleep 1
+A observable 1: 1
+A observable sleep 1
+B observable 4: 2
+B observable sleep 3
+A observable 2: 3
+A observable sleep 3
+B observable 5: 4
+B observable sleep 1
+A observable 3: 5
+B observable 6: 6
+```
+
+`ConccurentScheduler(並列)`で処理しているため、共有された変数`count`と`Observable`に流れる数値が同じにならず、意図通り並列で動いていることがわかります。
+では同じ`Observable`で`SerialScheduler(直列)`を利用してみましょう。
+
+
+```
+let observeOnScheduler = SerialDispatchQueueScheduler(qos: .default)
+
+var count = 0
+Observable.from(1...3)
+    .observeOn(observeOnScheduler)
+    .do(onNext: { i in
+        let time = arc4random_uniform(3) + 1
+        print("A observable sleep \(time)")
+        sleep(time)
+        count += 1
+        print("A observable \(i): \(count)")
+    }, onError: nil, onCompleted: nil, onSubscribe: nil, onSubscribed: nil, onDispose: nil)
+    .subscribe()
+
+Observable.from(4...6)
+    .observeOn(observeOnScheduler)
+    .do(onNext: { i in
+        let time = arc4random_uniform(3) + 1
+        print("B observable sleep \(time)")
+        sleep(time)
+        count += 1
+        print("B observable \(i): \(count)")
+    }, onError: nil, onCompleted: nil, onSubscribe: nil, onSubscribed: nil, onDispose: nil)
+    .subscribe()
+
+// 出力
+A observable sleep 2
+A observable 1: 1
+A observable sleep 1
+A observable 2: 2
+A observable sleep 2
+A observable 3: 3
+B observable sleep 3
+B observable 4: 4
+B observable sleep 1
+B observable 5: 5
+B observable sleep 1
+B observable 6: 6
+```
+
+それぞれスリープがかかっていることにも関わらず、共有された変数`count`と`Observable`に流れる数値が同じになっていて、意図通り直列に動いていることがわかります。
+
+さて、ここで大事なのが`Observable`を`subscribe`した時、`observeOn`,`subscribeOn`で`Scheduler`を指定していない場合は`CurrentThreadScheduler(今いるスレッド)`で実行するということです。
+つまり、何も考えずにメインスレッドで動いている処理中に`subscribe`してしまうと、重い処理をメインスレッドで処理してしまいます。
+
+普段コードを書いている時に、ここまで出てきたように`Observable`をそれぞれ生成して`subscribe`することなんてないからあまり関係なさそうだと思う人がいるかもしれませんが、実は普段からよく発生している処理です。
+それがどんなときかというと、`zip`, `merge`など`Observeble`を結合して処理を行う場合です。
+
+```
+let observeOnScheduler = // Schedulerを生成
+
+var count = 0
+let AObservable = Observable.from(1...3)
+    .observeOn(observeOnScheduler)
+    .do(onNext: { i in
+        let time = UInt32(3)
+        print("A observable sleep \(time)")
+        sleep(time)
+        count += 1
+        print("A observable \(i): \(count)")
+    }, onError: nil, onCompleted: nil, onSubscribe: nil, onSubscribed: nil, onDispose: nil)
+
+let BObservable = Observable.from(4...6)
+    .observeOn(observeOnScheduler)
+    .do(onNext: { i in
+        let time = UInt32(3)
+        print("B observable sleep \(time)")
+        sleep(time)
+        count += 1
+        print("B observable \(i): \(count)")
+    }, onError: nil, onCompleted: nil, onSubscribe: nil, onSubscribed: nil, onDispose: nil)
+
+Observable.zip(AObservable, BObservable, resultSelector: { e1, e2 in
+    print("e1: \(e1), e2: \(e2)")
+}).subscribe()
+```
+
+このコードは、今までに説明で利用してきた`Observable`を変数化して`Observable.zip`で結合したものを`subscribe`しています。
+`let observeOnScheduler`に`ConcurrentDispatchQueueScheduler`を指定した場合は、並列で走るため`3秒スリープ×3回`分の時間で完了します。
+しかし、`SerialDispatchQueueScheduler`を指定した場合は、直列で走るため`3秒スリープ×3回×2つObservable`分の時間がかかってしまいます。
+通信処理の待ち合わせなどで`zip`,`merge`などを使っていて、なぜか遅いなと思ったらSchedulerを疑ってみると良いかもしれません。
 
 ### Subject(余力あれば)
 
@@ -182,7 +309,6 @@ http://hadashia.hatenablog.com/entry/2016/02/23/175736
 https://qiita.com/fu_nya/items/8e52f835737389f8492c
 
 // TODO: observable, subscribeの数珠つなぎの仕組みはここで説明する？　https://qiita.com/k5n/items/643cc07e3973dd1fded4
-
 
 
 ```
