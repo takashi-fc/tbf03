@@ -253,33 +253,24 @@ B observable 6: 6
 ```
 let observeOnScheduler = // Schedulerを生成
 
-var count = 0
-let AObservable = Observable.from(1...3)
+let aObservable = Observable.from(1...3)
     .observeOn(observeOnScheduler)
     .do(onNext: { i in
-        let time = UInt32(3)
-        print("A observable sleep \(time)")
-        sleep(time)
-        count += 1
-        print("A observable \(i): \(count)")
+        sleep(UInt32(3))
     }, onError: nil, onCompleted: nil, onSubscribe: nil, onSubscribed: nil, onDispose: nil)
 
-let BObservable = Observable.from(4...6)
+let bObservable = Observable.from(4...6)
     .observeOn(observeOnScheduler)
     .do(onNext: { i in
-        let time = UInt32(3)
-        print("B observable sleep \(time)")
-        sleep(time)
-        count += 1
-        print("B observable \(i): \(count)")
+        sleep(UInt32(3))
     }, onError: nil, onCompleted: nil, onSubscribe: nil, onSubscribed: nil, onDispose: nil)
 
-Observable.zip(AObservable, BObservable, resultSelector: { e1, e2 in
+Observable.zip(aObservable, bObservable, resultSelector: { e1, e2 in
     print("e1: \(e1), e2: \(e2)")
 }).subscribe()
 ```
 
-このコードは、今までに説明で利用してきた`Observable`を変数化して`Observable.zip`で結合したものを`subscribe`しています。
+このコードは、今までに説明で利用してきた`Observable`のスリープ処理だけを残し変数化して`Observable.zip`で結合したものを`subscribe`しています。
 `let observeOnScheduler`に`ConcurrentDispatchQueueScheduler`を指定した場合は、並列で走るため`3秒スリープ×3回`分の時間で完了します。
 しかし、`SerialDispatchQueueScheduler`を指定した場合は、直列で走るため`3秒スリープ×3回×2つObservable`分の時間がかかってしまいます。
 通信処理の待ち合わせなどで`zip`,`merge`などを使っていて、なぜか遅いなと思ったらSchedulerを疑ってみると良いかもしれません。
