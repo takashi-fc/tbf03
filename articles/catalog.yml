@@ -1,8 +1,8 @@
 PREDEF:
   - preface.re
 CHAPS:
-  - test.re
   - rx-swift.re
+  - test.re
 
 APPENDIX:
 
