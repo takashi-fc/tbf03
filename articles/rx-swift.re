@@ -1,5 +1,5 @@
 
-= ユースケースで学ぶRxSwift再入門
+= RxSwift再入門
 
 == はじめに
 
@@ -45,7 +45,7 @@ RxSwiftを学ぶにあたって、まず最低限理解しておかないとい�
 その違いは、@<strong>{蛇口を開かないと水が流れない} というところです。
 @<tt>{Observable}は@<tt>{subscribe}を呼び出されること @<strong>{蛇口が開き}、@<strong>{初めて} 水が流れ出します。
 （@<strong>{初めて} という言葉を強調したのは、例外も存在するからです。これについてはまた後で説明します。）
-そして、@<tt>{Observable}に流れている値は@<tt>{subscribe}に引数として渡した@<tt>{Observer}の@<tt>{onNext,onError,onComplete}に流れ着きます。
+そして、@<tt>{Observable}に流れている値は@<tt>{subscribe}に引数として渡した@<tt>{Observer}の@<tt>{onNext, onError, onComplete}に流れ着きます。
 @<tt>{Observer}はObserverパターンと同じ意味合いです。なので、流れ着く＝通知されるということになります。
 
 
@@ -56,13 +56,14 @@ RxSwiftを学ぶにあたって、まず最低限理解しておかないとい�
 
 
 //emlist{
-Observable.of(1, 2, 3).map { $0 * $0 }
+Observable.of(1, 2, 3, 4).map { $0 * $0 }.filter { $0 % 2 == 0 }
 //}
 
 
 例えば、上記のコードの@<tt>{of}や@<tt>{map}が@<tt>{Operator}になります。
-他にも、@<tt>{Observable}を生成する@<tt>{Operator}は@<tt>{just,create}、変換する@<tt>{Operator}は@<tt>{map, flatMap, scan}などがあります。
-まだまだ様々な@<tt>{Operator}が存在しますが、量が多いので必要に応じてユースケースで学ぶ章で説明をしようと思います。
+他にも、@<tt>{Observable}を生成する@<tt>{Operator}は@<tt>{just, create}、変換する@<tt>{Operator}は@<tt>{map, flatMap, scan}などがあります。
+殆どの@<tt>{Operator}は@<tt>{Observable.subscribe}を呼び出し、@<tt>{Observable}を生成します。
+そのため上記のコードように、@<tt>{Operator}はメソッドチェーンをすることができます。
 
 
 === Observerについて
@@ -82,7 +83,7 @@ Observable.of(1, 2, 3).map { $0 * $0 }
 
 
 つまり先程@<tt>{Operator}について紹介する際に書いたコードだけでは何も起こりません。
-下記のように@<tt>{subscribe}することで初めて生成した@<tt>{Observable}が実行されます。
+下記のように@<tt>{subscribe}することで初めて生成した@<tt>{Observable}が流れ出します。
 
 
 //emlist{
@@ -93,10 +94,10 @@ Observable.of(1, 2, 3).map { $0 * $0 }.subscribe(onNext: { print($0) })
 このコードでは、@<tt>{1, 2, 3}という値がそれぞれ@<tt>{1 * 1}, @<tt>{2 * 2}, @<tt>{3 * 3}と@<tt>{map}で変換され、@<tt>{1, 4, 9}と出力されます。
 
 
-==== Observerと追加された派生系の種類
+==== ObserverとRxSwift3.xで追加された派生系の種類
 
 
-RxSwift3.x系からは@<tt>{Observer}の他に、@<tt>{Single}, @<tt>{Compaletable}, @<tt>{Maybe}が追加されています。
+RxSwift3.x系からは@<tt>{Observer}の他に、@<tt>{Single}, @<tt>{Completable}, @<tt>{Maybe}が追加されています。
 これらは通知される@<tt>{onXXX}が違います。@<tt>{Observer}を含めて表にするとこのようになります。
 
 //table[tbl1][]{
@@ -119,9 +120,9 @@ Observerの種類	動作
 実際にこれらを使う時の事を考えてみましょう。
 例えば、通信処理で下記のような処理をするとします。
 
- 1. リクエストを投げる
+ 1. ツイートのIDを指定して、それを取得するリクエストを投げる
  1. レスポンスを受け取る
- 1. 受け取った値をモデルなどにパースする
+ 1. 受け取ったJSONStringをTweetモデルに変換する
  1. できがったモデルをUIへ反映する
 
 
@@ -129,27 +130,22 @@ Observerの種類	動作
 この時、1~3はバックグラウンドで、4はメインスレッドで処理をするのが適切です。
 そのスレッドの制御をする役割を持つのが@<tt>{Scheduler}です。
 @<tt>{Scheduler}はiOSの仕組みとして存在するGCD（Grand Central Dispatch）を利用しています。
-それぞれの処理に@<tt>{Scheduler}を指定するために、@<tt>{observeOn},@<tt>{subscribeOn}メソッドを利用します。
-@<tt>{observeOn}は@<tt>{Operator}での処理、@<tt>{subscribeOn}は@<tt>{Observer}での処理の@<tt>{Scheduler}を指定できます。
+また、@<tt>{Scheduler}を指定するためには@<tt>{observeOn},@<tt>{subscribeOn}メソッドを利用します。
 
 
 //emlist{
-Observable.of(1, 2, 3)
-          .observeOn(A-scheduler)
-          .map { $0 + 1 }
-          .observeOn(B-scheduler)
-          .map { $0 * $0 }
-          .subscribeOn(C-scheduler)
-          .subscribe(onNext: { print($0) })
+TweetService.requestTweet(by: ツイートのID)　　　　　　　　              　 // 1
+            .map { JSONStringをTweetモデルへ変換($0) }                   // 2,3
+            .subscribeOn(background-scheduler)
+            .observeOn(main-scheduler)
+            .subscribe(onNext: { label.text = $0.ツイートのテキスト変数 }) // 4
 //}
 
 
 このように指定することができます。
-@<tt>{.map { $0 + 1 \}}は@<tt>{.observeOn(A-scheduler)}で指定された@<tt>{Scheduler}で動き
-@<tt>{.map { $0 * $0 \}}は@<tt>{.observeOn(B-scheduler)}で指定された@<tt>{Scheduler}で動き
-@<tt>{.subscribe(onNext: { print($0) \})}は@<tt>{.subscribeOn(C-scheduler)}で指定された@<tt>{Scheduler}で動きます。
-もし@<tt>{.subscribeOn}が2回呼び出されていた場合は、後に呼び出した方の@<tt>{Scheduler}で動きます。
-つまり、@<tt>{observeOn},@<tt>{subscribeOn}を呼び出した以降の処理はそれぞれ指定した@<tt>{Scheduler}で動きます。
+これで@<tt>{1~3}はバックグラウンドスレッド、@<tt>{4}はメインスレッドで動作します。
+きちんと@<tt>{observeOn},@<tt>{subscribeOn}の動作を理解をするためには、@<tt>{Observable.subscribe()}の動作を理解する必要があり、次の章で詳しくみていきます。
+この章を見る上では@<tt>{observeOn}は下方向に適応し、@<tt>{subscribeOn}は上方向に適応されるぐらいの認識で大丈夫です。
 
 
 ==== Schedulerの種類
@@ -171,7 +167,7 @@ ConcurrentDispatchQueueScheduler	指定されたQOSで生成された並列なQu
 ==== Schedulerで注意すべきこと
 
 
-Conccurent（並列）な@<tt>{Scheduler}で処理されていても、1つの@<tt>{Observable}によって流れる値は順序が保証されています。
+Concurrent（並列）な@<tt>{Scheduler}で処理されていても、1つの@<tt>{Observable}によって流れる値は順序が保証されています。
 そのため、このコードのようにスリープを挟んでも実行すると下記のように出力されます。
 
 
@@ -245,7 +241,7 @@ B observable 6: 6
 //}
 
 
-@<tt>{ConccurentScheduler(並列)}で処理しているため、共有された変数@<tt>{count}と@<tt>{Observable}に流れる数値が同じにならず、意図通り並列で動いていることがわかります。
+@<tt>{ConcurrentScheduler(並列)}で処理しているため、共有された変数@<tt>{count}と@<tt>{Observable}に流れる数値が同じにならず、意図通り並列で動いていることがわかります。
 では同じ@<tt>{Observable}で@<tt>{SerialScheduler(直列)}を利用してみましょう。
 
 
@@ -301,109 +297,398 @@ B observable 6: 6
 
 
 普段コードを書いている時に、ここまで出てきたように@<tt>{Observable}をそれぞれ生成して@<tt>{subscribe}することなんてないからあまり関係なさそうだと思う人がいるかもしれませんが、実は普段からよく発生している処理です。
-それがどんなときかというと、@<tt>{zip}, @<tt>{merge}など@<tt>{Observeble}を結合して処理を行う場合です。
+それがどんなときかというと、@<tt>{zip}, @<tt>{merge}など@<tt>{Observable}を結合して処理を行う場合です。
 
 
 //emlist{
 let observeOnScheduler = // Schedulerを生成
 
-var count = 0
-let AObservable = Observable.from(1...3)
+let aObservable = Observable.from(1...3)
     .observeOn(observeOnScheduler)
     .do(onNext: { i in
-        let time = UInt32(3)
-        print("A observable sleep \(time)")
-        sleep(time)
-        count += 1
-        print("A observable \(i): \(count)")
+        sleep(UInt32(3))
     }, onError: nil, onCompleted: nil, onSubscribe: nil, onSubscribed: nil, onDispose: nil)
 
-let BObservable = Observable.from(4...6)
+let bObservable = Observable.from(4...6)
     .observeOn(observeOnScheduler)
     .do(onNext: { i in
-        let time = UInt32(3)
-        print("B observable sleep \(time)")
-        sleep(time)
-        count += 1
-        print("B observable \(i): \(count)")
+        sleep(UInt32(3))
     }, onError: nil, onCompleted: nil, onSubscribe: nil, onSubscribed: nil, onDispose: nil)
 
-Observable.zip(AObservable, BObservable, resultSelector: { e1, e2 in
+Observable.zip(aObservable, bObservable, resultSelector: { e1, e2 in
     print("e1: \(e1), e2: \(e2)")
 }).subscribe()
 //}
 
 
-このコードは、今までに説明で利用してきた@<tt>{Observable}を変数化して@<tt>{Observable.zip}で結合したものを@<tt>{subscribe}しています。
+このコードは、今までに説明で利用してきた@<tt>{Observable}のスリープ処理だけを残し変数化して@<tt>{Observable.zip}で結合したものを@<tt>{subscribe}しています。
 @<tt>{let observeOnScheduler}に@<tt>{ConcurrentDispatchQueueScheduler}を指定した場合は、並列で走るため@<tt>{3秒スリープ×3回}分の時間で完了します。
 しかし、@<tt>{SerialDispatchQueueScheduler}を指定した場合は、直列で走るため@<tt>{3秒スリープ×3回×2つObservable}分の時間がかかってしまいます。
 通信処理の待ち合わせなどで@<tt>{zip},@<tt>{merge}などを使っていて、なぜか遅いなと思ったらSchedulerを疑ってみると良いかもしれません。
 
 
-=== Subject(余力あれば)
+=== Subject
 
 
-ここで冒頭で説明した、この説明が関わってきます。
+章の冒頭で
 
 
 //quote{
-@<tt>{Observable}は@<tt>{subscribe(Observer)}を呼び出されることで、@<strong>{初めて} 川が流れ出します。
+　@<tt>{Observable}は@<tt>{subscribe(Observer)}を呼び出されること @<strong>{蛇口が開き}、@<strong>{初めて} 水が流れ出します。
+（@<strong>{初めて} という言葉を強調したのは、例外も存在するからです。これについてはまた後で説明します。）
 
 //}
 
 
-@<tt>{Hot} or @<tt>{Cold}
-急に暑いとか寒いってなに？って感じですね。
-実は@<tt>{subscribe(Observer)}されなくとも、川が流れ出す場合があります。
-行き着く@<tt>{Observer}がないので、永遠に流れている川のようなイメージです。
+このように説明した例外が、この章で説明する@<tt>{Subject}です。
+@<tt>{Subject}は初めから蛇口が開いている状態、つまり初めから値が流れています。
+というと語弊があるかもしれませんが、@<tt>{subscribe}されていなくても値を流すことができるということです。
 
 
 
-http://qiita.com/KentaKudo/items/4d7154c3dada93f11492
-http://qiita.com/k5n/items/98aaf84fc164f7a5502c
+iOSアプリ開発ではよくタップなどのユーザの起こしたアクションを受け取るために使われます。
+その中でもいくつか方法はありますが@<tt>{Observable}なので繋げた@<tt>{Operator}で処理をする、@<tt>{Pub/Sub}の値を流すように使われる事が多いです。
+
+
+==== Subjectの種類
+//table[tbl3][]{
+Subject	動作
+-----------------
+.	.
+//}
+
+=== HotとCold
+
+
+基本的に@<tt>{Observable}は、@<tt>{subscribe}するまで値が流れません。
+その例外として@<tt>{Subject}を利用した@<tt>{Observable}は、常に値が流れています。
+これを@<tt>{Rx}の概念では@<tt>{Hot},@<tt>{Cold}と言います。
+@<tt>{Subject}以外にも@<tt>{Cold}を@<tt>{Hot}へ変換する@<tt>{Operator}が存在します。
+
+
+//emlist{
+let hotObservable = Observable
+    .from(1...3)
+    .publish()
+
+hotObservable.subscribe(onNext: { i in
+    print("subscribe onNext \(i)")
+})
+
+hotObservable.connect()
+//}
+
+
+上記のコードは@<tt>{publish}という@<tt>{Cold}->@<tt>{Hot}に変換する@<tt>{Operator}を使った例です。
+@<tt>{Cold}->@<tt>{Hot}の変換は、@<tt>{multicast}というメソッドで@<tt>{Cold}な@<tt>{Observable}の@<tt>{subscribe}時に@<tt>{Subject}で包む仕組みです。
+そして、@<tt>{Hot}な@<tt>{Observable}は自ら@<tt>{subscribe}を呼び出します。
 
 
 
-用途は主に同期的なUI操作のと気に使われる事が多いです。
+しかし、上記のコードで@<tt>{o.subscribe()}した時点では、実は値は流れてきません。
+@<tt>{publish}で返ってくるのは@<tt>{ConnectableObservable}という型で、@<tt>{connect}されることで初めて値が流れます。
+その時に@<tt>{subscribe}されているものに対して値が流れます。
+
+
+//emlist{
+let hotObservable = Observable
+        .from(1...3)
+        .do(onNext: { print("onNext: \($0)") })
+        .publish()
+
+hotObservable.connect()
+
+出力
+onNext: 1
+onNext: 2
+onNext: 3
+//}
+
+
+また、@<tt>{subscribe}されなくとも値は流れることは上記のコードの出力見ればわかるでしょう。
+
+
+
+@<tt>{Hot},@<tt>{Cold}の違いは、他にもあります。
+例えば、@<tt>{Hot}な@<tt>{Observable}は複数の@<tt>{subscribe}に対してストリームを共有しています。
+
+
+//emlist{
+var count = 0
+let hotObservable = Observable
+    .from(1...3)
+    .do(onNext: { i in
+        count += 1
+        print("doOnNext \(i), count:\(count)")
+    })
+    .publish()
+
+hotObservable.subscribe(onNext: { i in
+    print("1 subscribe onNext \(i)")
+})
+hotObservable.subscribe(onNext: { i in
+    print("2 subscribe onNext \(i)")
+})
+
+hotObservable.connect()
+
+
+出力
+doOnNext 1, count:1
+1 subscribe onNext 1
+2 subscribe onNext 1
+doOnNext 2, count:2
+1 subscribe onNext 2
+2 subscribe onNext 2
+doOnNext 3, count:3
+1 subscribe onNext 3
+2 subscribe onNext 3
+//}
+
+//emlist{
+var count = 0
+let coldObservable = Observable
+    .from(1...3)
+    .do(onNext: { i in
+        count += 1
+        print("doOnNext \(i), count:\(count)")
+    })
+
+coldObservable.subscribe(onNext: { i in
+    print("1 subscribe onNext \(i)")
+})
+coldObservable.subscribe(onNext: { i in
+    print("2 subscribe onNext \(i)")
+})
+
+
+出力
+doOnNext 1, count:1
+1 subscribe onNext 1
+doOnNext 2, count:2
+1 subscribe onNext 2
+doOnNext 3, count:3
+1 subscribe onNext 3
+doOnNext 1, count:4
+2 subscribe onNext 1
+doOnNext 2, count:5
+2 subscribe onNext 2
+doOnNext 3, count:6
+2 subscribe onNext 3
+//}
+
+
+そのため、上記の出力のように複数の@<tt>{subscribe}があった場合に、@<tt>{1, 2, 3}がそれぞれイベントが共有され、2つの@<tt>{subscribe}に対して @<strong>{同時} に流れています。
+@<tt>{Cold}の場合はイベントが複製され、それぞれの@<tt>{subscribe}に対して @<strong>{別々} に流れています。
+
+
+==== Cold -> Hot変換で注意すべきこと
+
+
+@<tt>{Cold}->@<tt>{Hot}変換した@<tt>{ConnectableObservable}では注意しないといけないことがあります。
+それは、@<tt>{connect}した@<tt>{Observable}を@<tt>{dispose}しないと開放されないということです。
+しかし、正しいタイミングを気にしながら@<tt>{dispose}するのはとても難しいことです。
+そこで@<tt>{ConnectableObservable}は@<tt>{refCount()}を持っています。
+
+
+//emlist{
+let hotObservable = Observable
+    .from(1...3)
+    .publish()
+    .refCount()
+
+hotObservable.subscribe(onNext: { i in
+    print("subscribe onNext \(i)")
+})
+
+出力
+subscribe onNext 1
+subscribe onNext 2
+subscribe onNext 3
+//}
+
+
+@<tt>{refCount}を呼び出すと、内部で@<tt>{connect}が呼び出しています。
+そして@<tt>{refCount}は全ての@<tt>{subscribe}が@<tt>{dispose}されると、自動で@<tt>{Observable}を@<tt>{dispose}してくれます。
+これはiOSで使われているメモリ管理の@<tt>{ARC}と同じ仕組みで@<tt>{subscribe}毎にカウントアップし、@<tt>{dispose}毎にカウントダウンされます。
+そしてカウントが@<tt>{0}になった時に@<tt>{dispose}されるため、@<tt>{dispose}のタイミングを意識しなくて良くなります。
+
+
+
+@<tt>{ConnectableObservable}は@<tt>{connect}を呼び出した時に@<tt>{subscribe}されているものに対して、値を流すと説明しました。
+上記のコードは@<tt>{refCount}内で@<tt>{connect}されていて、その時点では@<tt>{subscribe}されていません。
+しかし、その後に呼び出した@<tt>{subscribe}に値が流れています。
+これは@<tt>{refCount}により作用で、@<tt>{refCount}を呼び出すと@<tt>{connect}されているのにも関わらず、それ以降@<tt>{subscribe}されるまで値が流れないようになります。
+
+
+
+では、複数の@<tt>{subscribe}をしてみましょう。
+
+
+//emlist{
+let hotObservable = Observable
+    .from(1...3)
+    .publish()
+    .refCount()
+
+hotObservable.subscribe(onNext: { i in
+    print("1 subscribe onNext \(i)")
+})
+hotObservable.subscribe(onNext: { i in
+    print("2 subscribe onNext \(i)")
+})
+
+出力
+1 subscribe onNext 1
+1 subscribe onNext 2
+1 subscribe onNext 3
+//}
+
+
+2つ@<tt>{subscribe}しているはずが、最初の@<tt>{subscribe}にしか流れていません。
+これはストリームを共有しているため、初めに@<tt>{subscribe}した時点でそれに対して値が流れ
+2つ目の@<tt>{subscribe}の時点では、既に流れたイベントは流れ終えているため流れないということです。
+
+
+//emlist{
+var count = 0
+let hotObservable = Observable
+    .from(1...3)
+    .do(onNext: { i in
+        count += 1
+        print("doOnNext \(i), count:\(count)")
+    })
+    .replay(3)
+    .refCount()
+
+hotObservable.subscribe(onNext: { i in
+    print("1 subscribe onNext \(i)")
+})
+
+hotObservable.subscribe(onNext: { i in
+    print("2 subscribe onNext \(i)")
+})
+
+出力
+doOnNext 1, count:1
+1 subscribe onNext 1
+doOnNext 2, count:2
+1 subscribe onNext 2
+doOnNext 3, count:3
+1 subscribe onNext 3
+2 subscribe onNext 1
+2 subscribe onNext 2
+2 subscribe onNext 3
+//}
+
+
+@<tt>{publish}は@<tt>{PublishSubject}を利用するのに対して、@<tt>{replay}は@<tt>{ReplaySubject}を利用します。
+これにより@<tt>{publish}を@<tt>{replay(3)}に変えることで、上記の出力のように2つ目の@<tt>{subscribe}にも値が流れます。
+3つ流れる値があるため、@<tt>{replay(3)}としていますが、例えば@<tt>{replay(1)}にすると値は@<tt>{1}しか流れません。
+
+
+
+また、@<tt>{.publish().refCount()}は@<tt>{share()}、@<tt>{.replay().refCount()}は@<tt>{shareReplay()}というエイリアス的なメソッドが用意されています。
+ここまでは動作を理解するためにそれぞれを呼んでいましたが、動作を理解した上では@<tt>{share(), shareReplay()}を使った方が良いでしょう。
+
+
+== Observable.subscribe()の動作の流れ
+
+
+@<tt>{Observable.subscribe()}するとどんな流れで実行されるのか見ていきます。
+
+
+
+Observableについての章では
+
+
+//quote{
+殆どの@<tt>{Operator}は@<tt>{Observable.subscribe}を呼び出し、@<tt>{Observable}を生成します。
+
+//}
+
+
+このように説明し、Operatorの章では
+
+
+//quote{
+@<tt>{subscribe}することで初めて生成した@<tt>{Observable}が流れ出します。
+
+//}
+
+
+このように説明し、Schedulerの章では
+
+
+//quote{
+きちんと@<tt>{observeOn},@<tt>{subscribeOn}の動作を理解をするためには、@<tt>{Observable.subscribe()}の動作を理解する必要があり...
+@<tt>{observeOn}は下方向に適応し、@<tt>{subscribeOn}は上方向に適応されるぐらいの認識...
+
+//}
+
+
+このように説明しました。
+実はこれらが動作の流れの全てです。もう少しコードを元に動作を詳しく見ていきましょう。
+まずは@<tt>{Observable.subscribe()}するとどうなるのか。
+
+
+//emlist{
+Observable.from(1...3)
+          .subscribeOn(concurrentDispatchQueueScheduler)
+          .map { $0 + 1 }
+          .filter { $0 % 2 == 0 }
+          .observeOn(mainScheduler)
+          .subscribe(onNext: { i in
+              print("onNext \(i)")
+          }, onError: nil, onCompleted: nil, onDisposed: nil)
+//}
+ 1. @<tt>{subscribe}により、@<tt>{map { $0 + 1 \}}が@<tt>{subscribe}される 
+ 1. @<tt>{map}により、@<tt>{Observable.from(1...3)}が@<tt>{subscribe}される
+
+
+
+このように@<tt>{.subscribe()}を呼び出した箇所から、上方向に@<tt>{subscribe}していきます。
+この時の@<tt>{Scheduler}の指定が@<tt>{subscribeOn}になります。
+上記のコードでは、@<strong>{map, filterはsubscribe()が呼び出されたスレッド、from()はsubscribeOn()で指定したスレッドでsubscribeが呼び出されます。}
+そして、ここから下方向へ値が流れていきます。
+@<tt>{Observable}は値を一つ一つ流していくため
+
+ 1. @<tt>{from(1...3)}により@<tt>{onNext}に@<tt>{1}が流れる
+ 1. @<tt>{map { $0 + 1 \}}により@<tt>{2}になる
+ 1. @<tt>{filter { $0 % 2 == 0 \}}により結果が@<tt>{true}のため、通過する
+ 1. @<tt>{subscribe}に指定された@<tt>{Observer}の@<tt>{onNext}で@<tt>{onNext 1}と出力される
+ 1. 値が最後の@<tt>{Observer}まで到達したため、@<tt>{from(1...3)}により@<tt>{onNext}に@<tt>{2}が流れる
+ 1. 値が全て流れるまで繰り返される
+ 1. 全てが終わると@<tt>{dispose}が呼ばれ、開放される
+
+
+
+このように、初めの@<tt>{Observable}から、下方向に@<tt>{onXXX}を呼び出していきます。
+この時の@<tt>{Scheduler}の指定が@<tt>{observeOn}になります。
+上記のコードでは、@<strong>{from, map, filterはfromのonXXXが呼び出されたスレッド、subscribeで指定されたObserverはobserveOn()で指定したスレッドでonXXXが呼び出されます。}
+
+
+
+つまり、@<tt>{subscribe}された時にそこから上へ進み、一番上の@<tt>{Observable}まで到達したら下へ流れていきます。
+そのため、@<tt>{subscribeOn}は上方向に@<tt>{subscribe}される時に適応され、@<tt>{observeOn}は下方向に@<tt>{onXXX}される時に適応されるということです。
 
 
 == Operatorを自作してみる
 
 
 さて、基本的な知識を学んできました。
-川の流れと例えて来ましたが、実は理解する上で逆流する必要があります。
-http://hadashia.hatenablog.com/entry/2016/02/23/175736
-https://qiita.com/fu_nya/items/8e52f835737389f8492c
-
-
-
-// TODO: observable, subscribeの数珠つなぎの仕組みはここで説明する？　https://qiita.com/k5n/items/643cc07e3973dd1fded4
+ここでもう少し理解を深めるために、今までに使ってきた@<tt>{Operator}を作ってみましょう。
+@<tt>{Operator}は@<tt>{ObservableType}の@<tt>{extension}として実装されています。
+ちなみに@<tt>{Observable}を最初に生成する@<tt>{of, from, create}などのメソッドは@<tt>{Observable}の@<tt>{extension}として実装されています。
 
 
 //emlist{
 import RxSwift
 
-extension PrimitiveSequenceType where TraitType == SingleTrait {
-
-    public func myDebug(identifier: String) -> Single<Self.ElementType> {
-        return Single<ElementType>.create(subscribe: { observer in
-            Logger.debug("subscribed \(identifier)")
-            let subscription = self.subscribe { e in
-                Logger.debug("event \(identifier)  \(e)")
-                switch e {
-                case .success(let value):
-                    observer(.success(value))
-                case .error(let error):
-                    observer(.error(error))
-                }
-            }
-            return Disposables.create {
-                Logger.debug("disposing \(identifier)")
-                subscription.dispose()
-            }
-        })
+public struct Logger {
+    static func debug(_ string: String) {
+        print(string)
     }
-
 }
 
 extension ObservableType {
@@ -430,149 +715,51 @@ extension ObservableType {
         }
     }
 }
+
+Observable.from(1...3).myDebug(identifier: "from").subscribe()
+
+
+出力
+subscribed from
+event from  next(1)
+event from  next(2)
+event from  next(3)
+event from  completed
+disposing from
 //}
 
-== ユースケースで学ぶ（通信編）
 
+上記のコードは既存で存在する@<tt>{debug}という@<tt>{Operator}を模して、独自ロガーで出力するようにしたものです。
+既存の@<tt>{Operator}を見ると@<tt>{class}として実装されていますが、@<tt>{create}を利用することで簡単に独自の@<tt>{Operator}を作ることができます。
+@<tt>{create}に渡すクロージャの中で、@<tt>{ObservableType}に宣言されている@<tt>{subscribe}を呼び出すことで、自身が@<tt>{subscribe}された時の動作を指定できます。
+そこで各イベントの時に独自ロガーを使ってメッセージを出力しています。
 
-さて、ここまでRxSwiftを使う上での基本を学びました。
-ここからはイメージの付きやすいように、TwitterにおけるユースケースでRxSwiftを学んでいきます。（皆さんTwitterは使っていますか？使っていますよね。）
-※APIは実際のものではなく、模したAPIを利用しています。
 
+== DisposeBag
 
-=== ユーザのアカウントを認証する
 
+iOSアプリを開発している中で@<tt>{RxSwift}を使っていると複数の@<tt>{Observable}を使うことになると思います。
+しかし、それぞれきちんと@<tt>{dispose}するのは大変ですし忘れてしまうこともあると思います。
 
-説明
 
 
-//emlist{
-コード
-//}
+そこで、@<tt>{DisposeBag}というものがあります。
+@<tt>{DisposeBag}は複数の@<tt>{Disposable}を管理し、@<tt>{DisposeBag}のインスタンスが開放されるタイミングで管理している@<tt>{Disposable}を開放してくれます。
+@<tt>{DisposeBag}への@<tt>{Disposable}の追加は、@<tt>{Observable}に対して@<tt>{.disposed(by: DisposeBag)}するだけです。
+これにより、例えば@<tt>{UIViewController}の変数として@<tt>{DisposeBag}のインスタンスを用意するだけで、@<tt>{UIViewController}単位で@<tt>{Observable}の@<tt>{dispose}を管理することができます。
 
-=== ユーザのアカウントを認証してから、ツイートの一覧を取得する
-
-
-説明
-
-
-//emlist{
-コード
-//}
-
-=== ツイートの一覧からミュートしているユーザを除いて取得する（.zip + .filter）
-
-
-説明
-
-
-//emlist{
-コード
-//}
-
-=== いいねとリツイートを混ぜて一覧として取得する（.merge）
-
-
-説明
-
-
-//emlist{
-コード
-//}
-
-=== エラーハンドリング
-
-
-通信処理はいつでも失敗する可能性がありますよね。この記事がとてもわかりやすいです。
-https://academy.realm.io/posts/best-practices-pain-points-mobile-networking-rest-api-failures/
-
-
-==== タイムアウトしたら、通知を出す。そしてもう一度実行するか聞く。
-
-==== 返ってきたレスポンスのJSONスキーマが違って、モデルにパースできなかった。
-
-==== ツイートしたけど、オフライン状態だった
-
-
-通常の処理では、ツイートして返ってきたレスポンスを保存しますよね。
-ただ、ツイートも失敗する可能性がありますよね。
-公式アプリではその場合に下書きというところに保存するようになっています。
-
-
-//emlist{
-コード
-//}
-
-==== いいねしたけど、オフライン状態だった
-
-
-いいねボタン、アニメーションもあって気持ちいいですよね。
-ただ、失敗した時はいいねボタンをオフ状態に戻したかったりします。
-
-
-//emlist{
-コード
-//}
-
-==== ツイートを削除したけど、オフライン状態だった
-
-
-リモートを削除したと同時に、ローカルを削除も削除したいですよね。
-ただ、リモートが削除できた場合にのみ、ローカルを削除する必要がありますね。
-しかし、PUTを叩いても204しか返ってこず、削除したツイートのIDがない場合も。
-
-
-//emlist{
-コード
-//}
-
-== ユースケースで学ぶ（UI編）
-
-=== ツイートが空の場合にEmptyStateを表示したい
-
-
-説明
-
-
-//emlist{
-コード
-//}
-
-=== ログインフォームのバリデーション
-
-
-説明
-
-
-//emlist{
-コード
-//}
-
-=== チャットの他の人が入力中…みたいなやつ
- * チャット形式チュートリアルver（タイマーで自動投稿）
- ** 配列を回して次の文章を取る方法でチャット形式のチュートリアルできそう
- ** ユーザの入力待ち合わせも試す
-
-
-
-説明
-
-
-//emlist{
-コード
-//}
-
-=== タブ間でいいねを同期したい
-
-
-説明
-
-
-//emlist{
-コード
-//}
 
 == おわりに
+
+
+どうでしたか？「全然分からない。俺は雰囲気でObservableを使っている。」状態からは抜け出せたでしょうか？
+本当は@<tt>{ユースケースで学ぶRxSwift}というタイトルで書こうと思ったのですが、まず基本を理解しないといけないなと思って書いているとあっという間にページが埋まってしまいました。
+また訪れるであろう技術書典で、今度こそかければと思っています。
+
+
+
+また、本章の内容に間違い・紛らわしい内容があると思ったら Twitter: @roana0229 までメンションしていただけると嬉しいです。
+
 
 //footnote[1][https://github.com/ReactiveX/RxSwift]
 

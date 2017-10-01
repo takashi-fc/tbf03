@@ -2,7 +2,6 @@ PREDEF:
   - preface.re
 CHAPS:
   - rx-swift.re
-  - test.re
   - shin.fkd.re
 
 APPENDIX:
