@@ -77,8 +77,6 @@ RxSwift3.x系からは`Observer`の他に、`Single`, `Completable`, `Maybe`が�
 | `Compaletable` | `onCompleted`,`onError(error)`がどちらか1回 |
 | `Maybe` | `onSuccess(value)`,`onCompleted`,`onError(error)`のどれかが1回 |
 
-また、`onNext`,`onSuccess`内で例外が発生すると`onError`が呼び出されます。 // TODO: onCompletedも同じ？
-
 ### Scheduler
 
 今までは値を流す方法`Observable`や、流した後どこに着くのか`Observer`について学びました。
@@ -282,6 +280,22 @@ Observable.zip(aObservable, bObservable, resultSelector: { e1, e2 in
 `Subject`は初めから蛇口が開いている状態、つまり初めから値が流れています。
 というと語弊があるかもしれませんが、`subscribe`されていなくても値を流すことができるということです。
 
+```
+let subject = PublishSubject<String>()
+subject.onNext("1")
+subject.subscribe(onNext: { print("subscribe: \($0)") })
+subject.onNext("2")
+subject.onCompleted()
+subject.onNext("3")
+
+出力
+A subscribe: 2
+```
+
+`Subject`も`Observable`であり、`onNext, onCompleted, onError`を呼ぶことができます。
+しかし、`onCompleted, onError`のどちらかが呼ばれてしまうと、その後はイベントを流すことができません。
+そのため、上記のコードでは`subscribe`した後から`onCompleted`が呼ばれる前までの`onNext`のみ受け取っています。
+
 iOSアプリ開発ではよくタップなどのユーザの起こしたアクションを受け取るために使われます。
 その中でもいくつか方法はありますが`Observable`なので繋げた`Operator`で処理をする、`Pub/Sub`の値を流すように使われる事が多いです。
 
@@ -289,7 +303,10 @@ iOSアプリ開発ではよくタップなどのユーザの起こしたアク�
 
 | Subject | 動作 |
 |:--------:|-----|
-|  |  |
+| PublishSubject | キャッシュせず、来たイベントをそのまま通知する |
+| ReplaySubject | 指定した値だけキャッシュし、subscribe時に直近のキャッシュしたものを通知する |
+| BehaviorSubject | 初期値を持つことができ、1つだけキャッシュし、subscribe時に直近のキャッシュしたものを通知する |
+| Variable | 変数のように扱うことができ、valueプロパティを変更するとonNextへ通知する |
 
 ### HotとCold
 
