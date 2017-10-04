@@ -1,41 +1,57 @@
-# RxSwift再入門
+# RxSwift再入門 ~雰囲気から抜け出そう~
 
 ## はじめに
 
 みなさん、RxSwift[^1]使ってますか？
 プロミス・データバインディング・イベントバス・リストをあれこれする処理など色々できて良いですよね。
-ただ、「全然分からない。俺は雰囲気でObservableを使っている。」状態で使っていませんか？
+ただ、「全然分からない。俺は雰囲気でRxSwiftを使っている。」状態で使っていませんか？
+恥ずかしながら私は完全に雰囲気で使っていました。
 本章は、（私含めて）そこからの脱却を目指す第一弾です。
-今回は、`RxSwift`を使う上での基本を学んでいきながら、最後に各ユースケースで使い方を学んでいきます。
+今回は、`RxSwift`を使う上での基本を抑えつつ、どうやって動いているのかを学んでいきます。
 本章の内容は、`RxSwift`のgithubリポジトリにある`Rx.playground`[^2]を主に参考にしています。
+
+対象とする読者のイメージ
+
+- RxSwiftを使ったことがある
+- いまいち理解せず雰囲気で使っている
 
 執筆時点の環境
 
 - Xcode: 9.0
-- Swift: 4.0
-- RxSwift: rxswift4.0-swift4.0ブランチ(cb0fb3bda41f2a5622909b6e6deafd435efaf859)
+- Swift: 3.1
+- ReactiveX/RxSwift: master（bd5a9657b9a7cf52f583eecf00dc8b7c0cb9ebaa）
 
-## 基本的なRxSwiftの基礎知識・考え方
+## 登場人物
 
-RxSwiftを学ぶにあたって、まず最低限理解しておかないといけないものがあります。
-これに関して殆どは、`ReactiveX`全体で同様なので、他の言語で使ったことがある人は見慣れたものになると思います。
+本章で説明する登場人物は以下です。
 
-### Observable と Observer の関係
+- Observable
+- Observer
+- Operator
+- Scheduler
+- Subject
+
+登場人物達の繋がり
+
+[イメージ図]
+
+Observableで流れてくる値を、Operatorという道を通って、Observerへ到達します。
+RxSwiftを使うと何が嬉しいのかというと予め道とゴールを決めておき、そこに値が流れてくることができるため、データフローが明確になります。
+
+## Observable と Observer の関係
 
 公式サイト[^3]の説明を日本語訳すると
 
 > `Observer`は`Observable`を購読します。
 
 と書かれています。
-つまり、どういうことなの？と思うかもしれません。
-イメージの付きやすいように考える場合、よく`Observable`は川と例えられますが、個人的には蛇口の方が合ってるかと思っています。
-その違いは、**蛇口を開かないと水が流れない** というところです。
-`Observable`は`subscribe`を呼び出されること **蛇口が開き**、**初めて** 水が流れ出します。
-（**初めて** という言葉を強調したのは、例外も存在するからです。これについてはまた後で説明します。）
-そして、`Observable`に流れている値は`subscribe`に引数として渡した`Observer`の`onNext, onError, onComplete`に流れ着きます。
+​​イメージの付きやすいように例えると、蛇口と水路のような感じです。重要なのは、 **蛇口は開かないと水が流れない** という点です。
+`Observable`は`subscribe`が呼び出される（蛇口が開く）ことで、 **初めて** 値が流れ出します。
+（初めてという言葉を強調したのは、例外も存在するからです。これについてはまた後で説明します。）
+そして、`Observable`に​​流れている値は`Operator`（水路）を通り、`subscribe`に引数として渡した`Observer`の`onNext, onError, onComplete`に流れ着きます。
 `Observer`はObserverパターンと同じ意味合いです。なので、流れ着く＝通知されるということになります。
 
-### Operatorについて
+## Operatorについて
 
 `Observable`を生成・変換するために`Operator`が存在します。
 
@@ -45,10 +61,10 @@ Observable.of(1, 2, 3, 4).map { $0 * $0 }.filter { $0 % 2 == 0 }
 
 例えば、上記のコードの`of`や`map`が`Operator`になります。
 他にも、`Observable`を生成する`Operator`は`just, create`、変換する`Operator`は`map, flatMap, scan`などがあります。
-殆どの`Operator`は`Observable.subscribe`を呼び出し、`Observable`を生成します。
+`Operator`は`Observable.subscribe`を呼び出し、`Observable`を生成します。
 そのため上記のコードように、`Operator`はメソッドチェーンをすることができます。
 
-### Observerについて
+## Observerについて
 
 章の冒頭で
 
@@ -65,7 +81,7 @@ Observable.of(1, 2, 3).map { $0 * $0 }.subscribe(onNext: { print($0) })
 
 このコードでは、`1, 2, 3`という値がそれぞれ`1 * 1`, `2 * 2`, `3 * 3`と`map`で変換され、`1, 4, 9`と出力されます。
 
-#### ObserverとRxSwift3.xで追加された派生系の種類
+### ObserverとRxSwift3.xで追加された派生系の種類
 
 RxSwift3.x系からは`Observer`の他に、`Single`, `Completable`, `Maybe`が追加されています。
 これらは通知される`onXXX`が違います。`Observer`を含めて表にするとこのようになります。
@@ -77,7 +93,7 @@ RxSwift3.x系からは`Observer`の他に、`Single`, `Completable`, `Maybe`が�
 | `Compaletable` | `onCompleted`,`onError(error)`がどちらか1回 |
 | `Maybe` | `onSuccess(value)`,`onCompleted`,`onError(error)`のどれかが1回 |
 
-### Scheduler
+## Scheduler
 
 今までは値を流す方法`Observable`や、流した後どこに着くのか`Observer`について学びました。
 実際にこれらを使う時の事を考えてみましょう。
@@ -106,7 +122,7 @@ TweetService.requestTweet(by: ツイートのID)　　　　　　　　        
 きちんと`observeOn`,`subscribeOn`の動作を理解をするためには、`Observable.subscribe()`の動作を理解する必要があり、次の章で詳しくみていきます。
 この章を見る上では`observeOn`は下方向に適応し、`subscribeOn`は上方向に適応されるぐらいの認識で大丈夫です。
 
-#### Schedulerの種類
+### Schedulerの種類
 
 | Scheduler | 動作 |
 |:--------:|-----|
@@ -119,9 +135,9 @@ TweetService.requestTweet(by: ツイートのID)　　　　　　　　        
 それぞれ`DispatchQueue`を持つ仕組みになっていて、イニシャライザには引数として`DispatchQoS`を渡すものと`DispatchQueue`を渡すものがあります。
 `DispatchQoS`を引数として渡すイニシャライザは`iOS8`から追加されていて、指定したいラベルがあるなどのことがなければ`DispatchQueue`を渡すのではなく、`DispatchQoS`を渡す方が良いです。
 
-#### Schedulerで注意すべきこと
+### Schedulerで注意すべきこと
 
-Concurrent（並列）な`Scheduler`で処理されていても、1つの`Observable`によって流れる値は順序が保証されています。
+Concurrent（並列）な`Scheduler`で処理されていても、1つの`Observable`で流れる値は順序が保証されています。
 そのため、このコードのようにスリープを挟んでも実行すると下記のように出力されます。
 
 ```
@@ -191,7 +207,7 @@ A observable 3: 5
 B observable 6: 6
 ```
 
-`ConcurrentScheduler(並列)`で処理しているため、共有された変数`count`と`Observable`に流れる数値が同じにならず、意図通り並列で動いていることがわかります。
+`ConcurrentScheduler(並列)`で処理しているため、共有された変数`count`と`Observable`に流れる数値が同じにならず、並列で動いていることがわかります。
 では同じ`Observable`で`SerialScheduler(直列)`を利用してみましょう。
 
 
@@ -236,9 +252,9 @@ B observable sleep 1
 B observable 6: 6
 ```
 
-それぞれスリープがかかっていることにも関わらず、共有された変数`count`と`Observable`に流れる数値が同じになっていて、意図通り直列に動いていることがわかります。
+それぞれスリープがかかっていることにも関わらず、共有された変数`count`と`Observable`に流れる数値が同じになっていて、直列に動いていることがわかります。
 
-さて、ここで大事なのが`Observable`を`subscribe`した時、`observeOn`,`subscribeOn`で`Scheduler`を指定していない場合は`CurrentThreadScheduler(今いるスレッド)`で実行するということです。
+さて、このSchedulerの指定で大事なのが`Observable`を`subscribe`した時、`observeOn`,`subscribeOn`で`Scheduler`を指定していない場合は`CurrentThreadScheduler(今いるスレッド)`で実行するということです。
 つまり、何も考えずにメインスレッドで動いている処理中に`subscribe`してしまうと、重い処理をメインスレッドで処理してしまいます。
 
 普段コードを書いている時に、ここまで出てきたように`Observable`をそれぞれ生成して`subscribe`することなんてないからあまり関係なさそうだと思う人がいるかもしれませんが、実は普段からよく発生している処理です。
@@ -269,7 +285,7 @@ Observable.zip(aObservable, bObservable, resultSelector: { e1, e2 in
 しかし、`SerialDispatchQueueScheduler`を指定した場合は、直列で走るため`3秒スリープ×3回×2つObservable`分の時間がかかってしまいます。
 通信処理の待ち合わせなどで`zip`,`merge`などを使っていて、なぜか遅いなと思ったらSchedulerを疑ってみると良いかもしれません。
 
-### Subject
+## Subject
 
 章の冒頭で
 
@@ -296,10 +312,7 @@ A subscribe: 2
 しかし、`onCompleted, onError`のどちらかが呼ばれてしまうと、その後はイベントを流すことができません。
 そのため、上記のコードでは`subscribe`した後から`onCompleted`が呼ばれる前までの`onNext`のみ受け取っています。
 
-iOSアプリ開発ではよくタップなどのユーザの起こしたアクションを受け取るために使われます。
-その中でもいくつか方法はありますが`Observable`なので繋げた`Operator`で処理をする、`Pub/Sub`の値を流すように使われる事が多いです。
-
-#### Subjectの種類
+### Subjectの種類
 
 | Subject | 動作 |
 |:--------:|-----|
@@ -308,12 +321,11 @@ iOSアプリ開発ではよくタップなどのユーザの起こしたアク�
 | BehaviorSubject | 初期値を持つことができ、1つだけキャッシュし、subscribe時に直近のキャッシュしたものを通知する |
 | Variable | 変数のように扱うことができ、valueプロパティを変更するとonNextへ通知する |
 
-### HotとCold
+## HotとCold
 
 基本的に`Observable`は、`subscribe`するまで値が流れません。
 その例外として`Subject`を利用した`Observable`は、常に値が流れています。
 これを`Rx`の概念では`Hot`,`Cold`と言います。
-`Subject`以外にも`Cold`を`Hot`へ変換する`Operator`が存在します。
 
 ```
 let hotObservable = Observable
@@ -329,7 +341,7 @@ hotObservable.connect()
 
 上記のコードは`publish`という`Cold`->`Hot`に変換する`Operator`を使った例です。
 `Cold`->`Hot`の変換は、`multicast`というメソッドで`Cold`な`Observable`の`subscribe`時に`Subject`で包む仕組みです。
-そして、`Hot`な`Observable`は自ら`subscribe`を呼び出します。
+また、`Hot`な`Observable`は自ら`subscribe`を呼び出す性質を持ちます
 
 しかし、上記のコードで`o.subscribe()`した時点では、実は値は流れてきません。
 `publish`で返ってくるのは`ConnectableObservable`という型で、`connect`されることで初めて値が流れます。
@@ -421,7 +433,7 @@ doOnNext 3, count:6
 そのため、上記の出力のように複数の`subscribe`があった場合に、`1, 2, 3`がそれぞれイベントが共有され、2つの`subscribe`に対して **同時** に流れています。
 `Cold`の場合はイベントが複製され、それぞれの`subscribe`に対して **別々** に流れています。
 
-#### Cold -> Hot変換で注意すべきこと
+### Cold -> Hot変換で注意すべきこと
 
 `Cold`->`Hot`変換した`ConnectableObservable`では注意しないといけないことがあります。
 それは、`connect`した`Observable`を`dispose`しないと開放されないということです。
@@ -452,7 +464,7 @@ subscribe onNext 3
 `ConnectableObservable`は`connect`を呼び出した時に`subscribe`されているものに対して、値を流すと説明しました。
 上記のコードは`refCount`内で`connect`されていて、その時点では`subscribe`されていません。
 しかし、その後に呼び出した`subscribe`に値が流れています。
-これは`refCount`により作用で、`refCount`を呼び出すと`connect`されているのにも関わらず、それ以降`subscribe`されるまで値が流れないようになります。
+これは`refCount`による作用で、`refCount`を呼び出すと`connect`されているのにも関わらず、それ以降`subscribe`されるまで値が流れないようになります。
 
 では、複数の`subscribe`をしてみましょう。
 
@@ -631,17 +643,6 @@ disposing from
 `create`に渡すクロージャの中で、`ObservableType`に宣言されている`subscribe`を呼び出すことで、自身が`subscribe`された時の動作を指定できます。
 そこで各イベントの時に独自ロガーを使ってメッセージを出力しています。
 
-## DisposeBag
-
-iOSアプリを開発している中で`RxSwift`を使っていると複数の`Observable`を使うことになると思います。
-しかし、それぞれきちんと`dispose`するのは大変ですし忘れてしまうこともあると思います。
-
-そこで、`DisposeBag`というものがあります。
-`DisposeBag`は複数の`Disposable`を管理し、`DisposeBag`のインスタンスが開放されるタイミングで管理している`Disposable`を開放してくれます。
-`DisposeBag`への`Disposable`の追加は、`Observable`に対して`.disposed(by: DisposeBag)`するだけです。
-これにより、例えば`UIViewController`の変数として`DisposeBag`のインスタンスを用意するだけで、`UIViewController`単位で`Observable`の`dispose`を管理することができます。
-
-
 ## おわりに
 
 どうでしたか？「全然分からない。俺は雰囲気でObservableを使っている。」状態からは抜け出せたでしょうか？
@@ -651,5 +652,5 @@ iOSアプリを開発している中で`RxSwift`を使っていると複数の`O
 また、本章の内容に間違い・紛らわしい内容があると思ったら Twitter: @roana0229 までメンションしていただけると嬉しいです。
 
 [^1]: https://github.com/ReactiveX/RxSwift
-[^2]: https://github.com/ReactiveX/RxSwift/tree/master/Rx.playground/Pages
+[^2]: https://github.com/ReactiveX/RxSwift/tree/master/Rx.playground
 [^3]: http://reactivex.io/documentation/observable.html

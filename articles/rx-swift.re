@@ -1,33 +1,59 @@
 
-= RxSwift再入門
+= RxSwift再入門 ~雰囲気から抜け出そう~
 
 == はじめに
 
 
 みなさん、RxSwift@<fn>{1}使ってますか？
 プロミス・データバインディング・イベントバス・リストをあれこれする処理など色々できて良いですよね。
-ただ、「全然分からない。俺は雰囲気でObservableを使っている。」状態で使っていませんか？
+ただ、「全然分からない。俺は雰囲気でRxSwiftを使っている。」状態で使っていませんか？
+恥ずかしながら私は完全に雰囲気で使っていました。
 本章は、（私含めて）そこからの脱却を目指す第一弾です。
-今回は、@<tt>{RxSwift}を使う上での基本を学んでいきながら、最後に各ユースケースで使い方を学んでいきます。
+今回は、@<tt>{RxSwift}を使う上での基本を抑えつつ、どうやって動いているのかを学んでいきます。
 本章の内容は、@<tt>{RxSwift}のgithubリポジトリにある@<tt>{Rx.playground}@<fn>{2}を主に参考にしています。
+
+
+
+対象とする読者のイメージ
+
+ * RxSwiftを使ったことがある
+ * いまいち理解せず雰囲気で使っている
 
 
 
 執筆時点の環境
 
  * Xcode: 9.0
- * Swift: 4.0
- * RxSwift: rxswift4.0-swift4.0ブランチ(cb0fb3bda41f2a5622909b6e6deafd435efaf859)
+ * Swift: 3.1
+ * ReactiveX/RxSwift: master（bd5a9657b9a7cf52f583eecf00dc8b7c0cb9ebaa）
 
 
-== 基本的なRxSwiftの基礎知識・考え方
+== 登場人物
 
 
-RxSwiftを学ぶにあたって、まず最低限理解しておかないといけないものがあります。
-これに関して殆どは、@<tt>{ReactiveX}全体で同様なので、他の言語で使ったことがある人は見慣れたものになると思います。
+本章で説明する登場人物は以下です。
+
+ * Observable
+ * Observer
+ * Operator
+ * Scheduler
+ * Subject
 
 
-=== Observable と Observer の関係
+
+登場人物達の繋がり
+
+
+
+[イメージ図]
+
+
+
+Observableで流れてくる値を、Operatorという道を通って、Observerへ到達します。
+RxSwiftを使うと何が嬉しいのかというと予め道とゴールを決めておき、そこに値が流れてくることができるため、データフローが明確になります。
+
+
+== Observable と Observer の関係
 
 
 公式サイト@<fn>{3}の説明を日本語訳すると
@@ -40,16 +66,14 @@ RxSwiftを学ぶにあたって、まず最低限理解しておかないとい�
 
 
 と書かれています。
-つまり、どういうことなの？と思うかもしれません。
-イメージの付きやすいように考える場合、よく@<tt>{Observable}は川と例えられますが、個人的には蛇口の方が合ってるかと思っています。
-その違いは、@<strong>{蛇口を開かないと水が流れない} というところです。
-@<tt>{Observable}は@<tt>{subscribe}を呼び出されること @<strong>{蛇口が開き}、@<strong>{初めて} 水が流れ出します。
-（@<strong>{初めて} という言葉を強調したのは、例外も存在するからです。これについてはまた後で説明します。）
-そして、@<tt>{Observable}に流れている値は@<tt>{subscribe}に引数として渡した@<tt>{Observer}の@<tt>{onNext, onError, onComplete}に流れ着きます。
+​​イメージの付きやすいように例えると、蛇口と水路のような感じです。重要なのは、 @<strong>{蛇口は開かないと水が流れない} という点です。
+@<tt>{Observable}は@<tt>{subscribe}が呼び出される（蛇口が開く）ことで、 @<strong>{初めて} 値が流れ出します。
+（初めてという言葉を強調したのは、例外も存在するからです。これについてはまた後で説明します。）
+そして、@<tt>{Observable}に​​流れている値は@<tt>{Operator}（水路）を通り、@<tt>{subscribe}に引数として渡した@<tt>{Observer}の@<tt>{onNext, onError, onComplete}に流れ着きます。
 @<tt>{Observer}はObserverパターンと同じ意味合いです。なので、流れ着く＝通知されるということになります。
 
 
-=== Operatorについて
+== Operatorについて
 
 
 @<tt>{Observable}を生成・変換するために@<tt>{Operator}が存在します。
@@ -62,11 +86,11 @@ Observable.of(1, 2, 3, 4).map { $0 * $0 }.filter { $0 % 2 == 0 }
 
 例えば、上記のコードの@<tt>{of}や@<tt>{map}が@<tt>{Operator}になります。
 他にも、@<tt>{Observable}を生成する@<tt>{Operator}は@<tt>{just, create}、変換する@<tt>{Operator}は@<tt>{map, flatMap, scan}などがあります。
-殆どの@<tt>{Operator}は@<tt>{Observable.subscribe}を呼び出し、@<tt>{Observable}を生成します。
+@<tt>{Operator}は@<tt>{Observable.subscribe}を呼び出し、@<tt>{Observable}を生成します。
 そのため上記のコードように、@<tt>{Operator}はメソッドチェーンをすることができます。
 
 
-=== Observerについて
+== Observerについて
 
 
 章の冒頭で
@@ -94,7 +118,7 @@ Observable.of(1, 2, 3).map { $0 * $0 }.subscribe(onNext: { print($0) })
 このコードでは、@<tt>{1, 2, 3}という値がそれぞれ@<tt>{1 * 1}, @<tt>{2 * 2}, @<tt>{3 * 3}と@<tt>{map}で変換され、@<tt>{1, 4, 9}と出力されます。
 
 
-==== ObserverとRxSwift3.xで追加された派生系の種類
+=== ObserverとRxSwift3.xで追加された派生系の種類
 
 
 RxSwift3.x系からは@<tt>{Observer}の他に、@<tt>{Single}, @<tt>{Completable}, @<tt>{Maybe}が追加されています。
@@ -109,11 +133,7 @@ Observerの種類	動作
 @<tt>{Maybe}	@<tt>{onSuccess(value)},@<tt>{onCompleted},@<tt>{onError(error)}のどれかが1回
 //}
 
-
-また、@<tt>{onNext},@<tt>{onSuccess}内で例外が発生すると@<tt>{onError}が呼び出されます。 // TODO: onCompletedも同じ？
-
-
-=== Scheduler
+== Scheduler
 
 
 今までは値を流す方法@<tt>{Observable}や、流した後どこに着くのか@<tt>{Observer}について学びました。
@@ -148,7 +168,7 @@ TweetService.requestTweet(by: ツイートのID)　　　　　　　　        
 この章を見る上では@<tt>{observeOn}は下方向に適応し、@<tt>{subscribeOn}は上方向に適応されるぐらいの認識で大丈夫です。
 
 
-==== Schedulerの種類
+=== Schedulerの種類
 //table[tbl2][]{
 Scheduler	動作
 -----------------
@@ -164,10 +184,10 @@ ConcurrentDispatchQueueScheduler	指定されたQOSで生成された並列なQu
 @<tt>{DispatchQoS}を引数として渡すイニシャライザは@<tt>{iOS8}から追加されていて、指定したいラベルがあるなどのことがなければ@<tt>{DispatchQueue}を渡すのではなく、@<tt>{DispatchQoS}を渡す方が良いです。
 
 
-==== Schedulerで注意すべきこと
+=== Schedulerで注意すべきこと
 
 
-Concurrent（並列）な@<tt>{Scheduler}で処理されていても、1つの@<tt>{Observable}によって流れる値は順序が保証されています。
+Concurrent（並列）な@<tt>{Scheduler}で処理されていても、1つの@<tt>{Observable}で流れる値は順序が保証されています。
 そのため、このコードのようにスリープを挟んでも実行すると下記のように出力されます。
 
 
@@ -241,7 +261,7 @@ B observable 6: 6
 //}
 
 
-@<tt>{ConcurrentScheduler(並列)}で処理しているため、共有された変数@<tt>{count}と@<tt>{Observable}に流れる数値が同じにならず、意図通り並列で動いていることがわかります。
+@<tt>{ConcurrentScheduler(並列)}で処理しているため、共有された変数@<tt>{count}と@<tt>{Observable}に流れる数値が同じにならず、並列で動いていることがわかります。
 では同じ@<tt>{Observable}で@<tt>{SerialScheduler(直列)}を利用してみましょう。
 
 
@@ -287,11 +307,11 @@ B observable 6: 6
 //}
 
 
-それぞれスリープがかかっていることにも関わらず、共有された変数@<tt>{count}と@<tt>{Observable}に流れる数値が同じになっていて、意図通り直列に動いていることがわかります。
+それぞれスリープがかかっていることにも関わらず、共有された変数@<tt>{count}と@<tt>{Observable}に流れる数値が同じになっていて、直列に動いていることがわかります。
 
 
 
-さて、ここで大事なのが@<tt>{Observable}を@<tt>{subscribe}した時、@<tt>{observeOn},@<tt>{subscribeOn}で@<tt>{Scheduler}を指定していない場合は@<tt>{CurrentThreadScheduler(今いるスレッド)}で実行するということです。
+さて、このSchedulerの指定で大事なのが@<tt>{Observable}を@<tt>{subscribe}した時、@<tt>{observeOn},@<tt>{subscribeOn}で@<tt>{Scheduler}を指定していない場合は@<tt>{CurrentThreadScheduler(今いるスレッド)}で実行するということです。
 つまり、何も考えずにメインスレッドで動いている処理中に@<tt>{subscribe}してしまうと、重い処理をメインスレッドで処理してしまいます。
 
 
@@ -327,7 +347,7 @@ Observable.zip(aObservable, bObservable, resultSelector: { e1, e2 in
 通信処理の待ち合わせなどで@<tt>{zip},@<tt>{merge}などを使っていて、なぜか遅いなと思ったらSchedulerを疑ってみると良いかもしれません。
 
 
-=== Subject
+== Subject
 
 
 章の冒頭で
@@ -345,25 +365,40 @@ Observable.zip(aObservable, bObservable, resultSelector: { e1, e2 in
 というと語弊があるかもしれませんが、@<tt>{subscribe}されていなくても値を流すことができるということです。
 
 
+//emlist{
+let subject = PublishSubject<String>()
+subject.onNext("1")
+subject.subscribe(onNext: { print("subscribe: \($0)") })
+subject.onNext("2")
+subject.onCompleted()
+subject.onNext("3")
 
-iOSアプリ開発ではよくタップなどのユーザの起こしたアクションを受け取るために使われます。
-その中でもいくつか方法はありますが@<tt>{Observable}なので繋げた@<tt>{Operator}で処理をする、@<tt>{Pub/Sub}の値を流すように使われる事が多いです。
+出力
+A subscribe: 2
+//}
 
 
-==== Subjectの種類
+@<tt>{Subject}も@<tt>{Observable}であり、@<tt>{onNext, onCompleted, onError}を呼ぶことができます。
+しかし、@<tt>{onCompleted, onError}のどちらかが呼ばれてしまうと、その後はイベントを流すことができません。
+そのため、上記のコードでは@<tt>{subscribe}した後から@<tt>{onCompleted}が呼ばれる前までの@<tt>{onNext}のみ受け取っています。
+
+
+=== Subjectの種類
 //table[tbl3][]{
 Subject	動作
 -----------------
-.	.
+PublishSubject	キャッシュせず、来たイベントをそのまま通知する
+ReplaySubject	指定した値だけキャッシュし、subscribe時に直近のキャッシュしたものを通知する
+BehaviorSubject	初期値を持つことができ、1つだけキャッシュし、subscribe時に直近のキャッシュしたものを通知する
+Variable	変数のように扱うことができ、valueプロパティを変更するとonNextへ通知する
 //}
 
-=== HotとCold
+== HotとCold
 
 
 基本的に@<tt>{Observable}は、@<tt>{subscribe}するまで値が流れません。
 その例外として@<tt>{Subject}を利用した@<tt>{Observable}は、常に値が流れています。
 これを@<tt>{Rx}の概念では@<tt>{Hot},@<tt>{Cold}と言います。
-@<tt>{Subject}以外にも@<tt>{Cold}を@<tt>{Hot}へ変換する@<tt>{Operator}が存在します。
 
 
 //emlist{
@@ -381,7 +416,7 @@ hotObservable.connect()
 
 上記のコードは@<tt>{publish}という@<tt>{Cold}->@<tt>{Hot}に変換する@<tt>{Operator}を使った例です。
 @<tt>{Cold}->@<tt>{Hot}の変換は、@<tt>{multicast}というメソッドで@<tt>{Cold}な@<tt>{Observable}の@<tt>{subscribe}時に@<tt>{Subject}で包む仕組みです。
-そして、@<tt>{Hot}な@<tt>{Observable}は自ら@<tt>{subscribe}を呼び出します。
+また、@<tt>{Hot}な@<tt>{Observable}は自ら@<tt>{subscribe}を呼び出す性質を持ちます
 
 
 
@@ -482,7 +517,7 @@ doOnNext 3, count:6
 @<tt>{Cold}の場合はイベントが複製され、それぞれの@<tt>{subscribe}に対して @<strong>{別々} に流れています。
 
 
-==== Cold -> Hot変換で注意すべきこと
+=== Cold -> Hot変換で注意すべきこと
 
 
 @<tt>{Cold}->@<tt>{Hot}変換した@<tt>{ConnectableObservable}では注意しないといけないことがあります。
@@ -518,7 +553,7 @@ subscribe onNext 3
 @<tt>{ConnectableObservable}は@<tt>{connect}を呼び出した時に@<tt>{subscribe}されているものに対して、値を流すと説明しました。
 上記のコードは@<tt>{refCount}内で@<tt>{connect}されていて、その時点では@<tt>{subscribe}されていません。
 しかし、その後に呼び出した@<tt>{subscribe}に値が流れています。
-これは@<tt>{refCount}により作用で、@<tt>{refCount}を呼び出すと@<tt>{connect}されているのにも関わらず、それ以降@<tt>{subscribe}されるまで値が流れないようになります。
+これは@<tt>{refCount}による作用で、@<tt>{refCount}を呼び出すと@<tt>{connect}されているのにも関わらず、それ以降@<tt>{subscribe}されるまで値が流れないようになります。
 
 
 
@@ -735,20 +770,6 @@ disposing from
 そこで各イベントの時に独自ロガーを使ってメッセージを出力しています。
 
 
-== DisposeBag
-
-
-iOSアプリを開発している中で@<tt>{RxSwift}を使っていると複数の@<tt>{Observable}を使うことになると思います。
-しかし、それぞれきちんと@<tt>{dispose}するのは大変ですし忘れてしまうこともあると思います。
-
-
-
-そこで、@<tt>{DisposeBag}というものがあります。
-@<tt>{DisposeBag}は複数の@<tt>{Disposable}を管理し、@<tt>{DisposeBag}のインスタンスが開放されるタイミングで管理している@<tt>{Disposable}を開放してくれます。
-@<tt>{DisposeBag}への@<tt>{Disposable}の追加は、@<tt>{Observable}に対して@<tt>{.disposed(by: DisposeBag)}するだけです。
-これにより、例えば@<tt>{UIViewController}の変数として@<tt>{DisposeBag}のインスタンスを用意するだけで、@<tt>{UIViewController}単位で@<tt>{Observable}の@<tt>{dispose}を管理することができます。
-
-
 == おわりに
 
 
@@ -763,6 +784,6 @@ iOSアプリを開発している中で@<tt>{RxSwift}を使っていると複数
 
 //footnote[1][https://github.com/ReactiveX/RxSwift]
 
-//footnote[2][https://github.com/ReactiveX/RxSwift/tree/master/Rx.playground/Pages]
+//footnote[2][https://github.com/ReactiveX/RxSwift/tree/master/Rx.playground]
 
 //footnote[3][http://reactivex.io/documentation/observable.html]
