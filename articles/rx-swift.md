@@ -21,7 +21,7 @@
 - Swift: 3.1
 - ReactiveX/RxSwift: master（bd5a9657b9a7cf52f583eecf00dc8b7c0cb9ebaa）
 
-## 登場人物
+## 登場人物とそれぞれの関係
 
 本章で説明する登場人物は以下です。
 
@@ -31,55 +31,56 @@
 - Scheduler
 - Subject
 
-登場人物達の繋がり
+公式サイト[^3]には
+
+> In ReactiveX an observer subscribes to an Observable
+
+「 **Observer** は **Observable** を購読します」と書かれています。
+ObserverはObserverパターンと同じ意味合いで使われ、通知される立場にあります。
+Observableに流れているイベントが、Operatorという道を通って、Observerへ到達します。
+RxSwiftを使うと何が嬉しいのかというと予め道とゴールを決めておき、そこに値が流れてくることができるため、データフローが明確になります。
+
+​​イメージの付きやすいように例えると　**Observableは蛇口**　、**Operatorは水路**　のような感じです。重要なのは、 **蛇口は開かないと水が流れない** という点です。
+Observableはsubscribeが呼び出される（蛇口が開く）ことで、 **初めて** 流れ出します。
+（初めてという言葉を強調したのは、例外も存在するからです。これについてはまた後で説明します。）
+そして、Observableに流れているイベントはOperator（水路）を通り、subscribeに引数として渡したObserverのonNext,onError,onCompleteに流れ着きます。
 
 [イメージ図]
 
-Observableで流れてくる値を、Operatorという道を通って、Observerへ到達します。
-RxSwiftを使うと何が嬉しいのかというと予め道とゴールを決めておき、そこに値が流れてくることができるため、データフローが明確になります。
+## Observableについて
 
-## Observable と Observer の関係
-
-公式サイト[^3]の説明を日本語訳すると
-
-> `Observer`は`Observable`を購読します。
-
-と書かれています。
-​​イメージの付きやすいように例えると、蛇口と水路のような感じです。重要なのは、 **蛇口は開かないと水が流れない** という点です。
-`Observable`は`subscribe`が呼び出される（蛇口が開く）ことで、 **初めて** 値が流れ出します。
-（初めてという言葉を強調したのは、例外も存在するからです。これについてはまた後で説明します。）
-そして、`Observable`に​​流れている値は`Operator`（水路）を通り、`subscribe`に引数として渡した`Observer`の`onNext, onError, onComplete`に流れ着きます。
-`Observer`はObserverパターンと同じ意味合いです。なので、流れ着く＝通知されるということになります。
+Observableはストリームで、subscribeされることで初めてストリームが流れます。
+そのストリームに値をonNext,onError,onCompletedというイベントに包んで、購読しているObserverへ通知します。
+そしてonNextは複数回、onEror,onCompleteは一度だけ通知することができます。
+onErrorもしくはonCompletedを呼んだ後は一切イベントが流れません。
 
 ## Operatorについて
 
-`Observable`を生成・変換するために`Operator`が存在します。
+OperatorはObservableをsubscribeし、Observableを生成します。
 
 ```
-Observable.of(1, 2, 3, 4).map { $0 * $0 }.filter { $0 % 2 == 0 }
+Observable.of(1, 2, 3).map { $0 * $0 }.filter { $0 % 2 == 0 }
 ```
 
-例えば、上記のコードの`of`や`map`が`Operator`になります。
-他にも、`Observable`を生成する`Operator`は`just, create`、変換する`Operator`は`map, flatMap, scan`などがあります。
-`Operator`は`Observable.subscribe`を呼び出し、`Observable`を生成します。
-そのため上記のコードように、`Operator`はメソッドチェーンをすることができます。
+例えば、上記のコードの **of** や **map** が **Operator** です。
+他にも、Observableを生成するOperatorはjust, create、変換するOperatorはmap, flatMap, scanなどがあります。
+Operatorは生成・変換するとObservableが返ってくるため、Observable,Operator同士は繋ぐことができます。
 
 ## Observerについて
 
-章の冒頭で
+登場人物を紹介したとき
 
->　`Observable`は`subscribe(Observer)`を呼び出されること **蛇口が開き**、**初めて** 水が流れ出します。
+>　Observableはsubscribeが呼び出される（蛇口が開く）ことで、 **初めて** イベントが流れ出します。
 
 このように言いました。
-
-つまり先程`Operator`について紹介する際に書いたコードだけでは何も起こりません。
-下記のように`subscribe`することで初めて生成した`Observable`が流れ出します。
+つまり先程Operatorについて紹介する際に書いたコードだけでは何も起こりません。
+下記のようにsubscribeすることで初めてObservableが流れ出します。
 
 ```
 Observable.of(1, 2, 3).map { $0 * $0 }.subscribe(onNext: { print($0) })
 ```
 
-このコードでは、`1, 2, 3`という値がそれぞれ`1 * 1`, `2 * 2`, `3 * 3`と`map`で変換され、`1, 4, 9`と出力されます。
+このコードでは、`1, 2, 3`という値がonNextというイベントに包まれ、それぞれ`1 * 1`, `2 * 2`, `3 * 3`と`map`で変換され、ObserverのonNextへ通知され`1, 4, 9`と出力されます。
 
 ### ObserverとRxSwift3.xで追加された派生系の種類
 
@@ -95,7 +96,7 @@ RxSwift3.x系からは`Observer`の他に、`Single`, `Completable`, `Maybe`が�
 
 ## Scheduler
 
-今までは値を流す方法`Observable`や、流した後どこに着くのか`Observer`について学びました。
+ここまでイベントを通知するObservable、それを生成・変換するOperator、通知されるObserverについて学びました。
 実際にこれらを使う時の事を考えてみましょう。
 例えば、通信処理で下記のような処理をするとします。
 
@@ -105,9 +106,9 @@ RxSwift3.x系からは`Observer`の他に、`Single`, `Completable`, `Maybe`が�
 4. できがったモデルをUIへ反映する
 
 この時、1~3はバックグラウンドで、4はメインスレッドで処理をするのが適切です。
-そのスレッドの制御をする役割を持つのが`Scheduler`です。
-`Scheduler`はiOSの仕組みとして存在するGCD（Grand Central Dispatch）を利用しています。
-また、`Scheduler`を指定するためには`observeOn`,`subscribeOn`メソッドを利用します。
+そのスレッドの制御をする役割を持つのが **Scheduler** です。
+**Scheduler** はiOSの仕組みとして存在するGCD（Grand Central Dispatch）を利用することでスレッド制御を実現しています。
+そのSchedulerを指定するためには **observeOn** , **subscribeOn** メソッドを利用します。
 
 ```
 TweetService.requestTweet(by: ツイートのID)　　　　　　　　              　 // 1
@@ -117,10 +118,10 @@ TweetService.requestTweet(by: ツイートのID)　　　　　　　　        
             .subscribe(onNext: { label.text = $0.ツイートのテキスト変数 }) // 4
 ```
 
-このように指定することができます。
+これは実際にSchedulerを指定したコードの例です。
 これで`1~3`はバックグラウンドスレッド、`4`はメインスレッドで動作します。
-きちんと`observeOn`,`subscribeOn`の動作を理解をするためには、`Observable.subscribe()`の動作を理解する必要があり、次の章で詳しくみていきます。
-この章を見る上では`observeOn`は下方向に適応し、`subscribeOn`は上方向に適応されるぐらいの認識で大丈夫です。
+きちんとobserveOn,subscribeOnの動作を理解をするためには、 **Observable.subscribe()** の動作を理解する必要があり、後で詳しくみていきます。
+この章を見る上では **observeOnは下方向** に適応し、 **subscribeOnは上方向** に適応されるぐらいの認識で大丈夫です。
 
 ### Schedulerの種類
 
@@ -132,13 +133,13 @@ TweetService.requestTweet(by: ツイートのID)　　　　　　　　        
 | SerialDispatchQueueScheduler | 指定されたQOSで生成された直列なQueueで動きます |
 | ConcurrentDispatchQueueScheduler | 指定されたQOSで生成された並列なQueueで動きます |
 
-それぞれ`DispatchQueue`を持つ仕組みになっていて、イニシャライザには引数として`DispatchQoS`を渡すものと`DispatchQueue`を渡すものがあります。
-`DispatchQoS`を引数として渡すイニシャライザは`iOS8`から追加されていて、指定したいラベルがあるなどのことがなければ`DispatchQueue`を渡すのではなく、`DispatchQoS`を渡す方が良いです。
+それぞれ DispatchQueueを持つ仕組みになっていて、イニシャライザには引数としてDispatchQoSを渡すものとDispatchQueueを渡すものがあります。
+DispatchQoSを引数として渡すイニシャライザはiOS8から追加されていて、指定したいラベルがあるなどのことがなければDispatchQueueを渡すのではなく、DispatchQoSを渡す方が良いです。
 
 ### Schedulerで注意すべきこと
 
-Concurrent（並列）な`Scheduler`で処理されていても、1つの`Observable`で流れる値は順序が保証されています。
-そのため、このコードのようにスリープを挟んでも実行すると下記のように出力されます。
+まず、Concurrent（並列）なSchedulerで処理されていても、1つのObservableで流れる値は順序が保証されています。
+そのため、このコードのようにランダムなスリープを挟んでも実行すると`1, 2, 3`と値は順に出力されています。
 
 ```
 let observeOnScheduler = ConcurrentDispatchQueueScheduler(qos: .default)
@@ -164,7 +165,7 @@ A observable sleep 1
 A observable 3: 3
 ```
 
-では、先程のスケジューラで2つのObservableをsubscribeしたらどうなるでしょうか？
+では、同じ並列なScheduerで2つのObservableをsubscribeしたらどうなるでしょうか？
 
 ```
 let observeOnScheduler = ConcurrentDispatchQueueScheduler(qos: .default)
@@ -207,9 +208,8 @@ A observable 3: 5
 B observable 6: 6
 ```
 
-`ConcurrentScheduler(並列)`で処理しているため、共有された変数`count`と`Observable`に流れる数値が同じにならず、並列で動いていることがわかります。
-では同じ`Observable`で`SerialScheduler(直列)`を利用してみましょう。
-
+Concurrent（並列）なSchedulerで処理しているため、共有された変数countとObservableに流れる値が同じにならず、並列で動いていることがわかります。
+では、Serial（直列）なSchedulerに変えてみましょう。
 
 ```
 let observeOnScheduler = SerialDispatchQueueScheduler(qos: .default)
@@ -252,16 +252,16 @@ B observable sleep 1
 B observable 6: 6
 ```
 
-それぞれスリープがかかっていることにも関わらず、共有された変数`count`と`Observable`に流れる数値が同じになっていて、直列に動いていることがわかります。
+それぞれランダムにスリープがかかっていることにも関わらず、共有された変数countとObservableに流れる値が同じになっていて、直列に動いていることがわかります。
 
-さて、このSchedulerの指定で大事なのが`Observable`を`subscribe`した時、`observeOn`,`subscribeOn`で`Scheduler`を指定していない場合は`CurrentThreadScheduler(今いるスレッド)`で実行するということです。
-つまり、何も考えずにメインスレッドで動いている処理中に`subscribe`してしまうと、重い処理をメインスレッドで処理してしまいます。
+さて、このSchedulerの指定で大事なのがObservableをsubscribeした時、observeOn,subscribeOnでSchedulerを指定していない場合は　**CurrentThreadScheduler(今いるスレッドで実行するScheduler)** で実行されるということです。
+つまり、何も考えずにメインスレッドで動いている処理中にsubscribeしてしまうと、重い処理をメインスレッドで処理してしまいます。
 
-普段コードを書いている時に、ここまで出てきたように`Observable`をそれぞれ生成して`subscribe`することなんてないからあまり関係なさそうだと思う人がいるかもしれませんが、実は普段からよく発生している処理です。
-それがどんなときかというと、`zip`, `merge`など`Observable`を結合して処理を行う場合です。
+普段コードを書いている時に、これまでに示してきたようにObservableをそれぞれ生成してsubscribeすることなんてないからあまり関係なさそうだと思う人がいるかもしれませんが、実は普段からよく発生している処理です。
+それがどんなときかというと、zip,mergeなどObservableを結合して処理を行う場合です。
 
 ```
-let observeOnScheduler = // Schedulerを生成
+let observeOnScheduler = // ConcurrentDispatchQueueScheduler or SerialDispatchQueueScheduler
 
 let aObservable = Observable.from(1...3)
     .observeOn(observeOnScheduler)
@@ -280,37 +280,37 @@ Observable.zip(aObservable, bObservable, resultSelector: { e1, e2 in
 }).subscribe()
 ```
 
-このコードは、今までに説明で利用してきた`Observable`のスリープ処理だけを残し変数化して`Observable.zip`で結合したものを`subscribe`しています。
-`let observeOnScheduler`に`ConcurrentDispatchQueueScheduler`を指定した場合は、並列で走るため`3秒スリープ×3回`分の時間で完了します。
-しかし、`SerialDispatchQueueScheduler`を指定した場合は、直列で走るため`3秒スリープ×3回×2つObservable`分の時間がかかってしまいます。
-通信処理の待ち合わせなどで`zip`,`merge`などを使っていて、なぜか遅いなと思ったらSchedulerを疑ってみると良いかもしれません。
+このコードは、今までに説明で利用してきたObservableのスリープ処理だけを残し変数化してzipで結合したものをsubscribeしています。
+ConcurrentDispatchQueueSchedulerを指定した場合は、並列で走るため **3秒スリープ×3回分** の時間で完了します。
+しかし、SerialDispatchQueueSchedulerを指定した場合は、直列で走るため **3秒スリープ×3回×2つObservable分** の時間がかかってしまいます。
+通信処理の待ち合わせなどでzip,mergeなどを使っていて、なぜか遅いなと思ったらSchedulerを疑ってみると良いかもしれません。
 
 ## Subject
 
-章の冒頭で
+登場人物を紹介したとき
 
->　`Observable`は`subscribe(Observer)`を呼び出されること **蛇口が開き**、**初めて** 水が流れ出します。
-> （**初めて** という言葉を強調したのは、例外も存在するからです。これについてはまた後で説明します。）
+> Observableはsubscribeが呼び出される（蛇口が開く）ことで、 **初めて** イベントが流れ出します。
+> （初めてという言葉を強調したのは、例外も存在するからです。これについてはまた後で説明します。）
 
-このように説明した例外が、この章で説明する`Subject`です。
-`Subject`は初めから蛇口が開いている状態、つまり初めから値が流れています。
-というと語弊があるかもしれませんが、`subscribe`されていなくても値を流すことができるということです。
+このように説明した例外が、この章で説明する **Subject** です。
+SubjectもObservableです。しかし、初めから蛇口が開いている状態、つまり初めから流れています。
+というと語弊があるかもしれませんが、subscribeされていなくてもイベントを流すことができるということです。
 
 ```
 let subject = PublishSubject<String>()
-subject.onNext("1")
+subject.onNext("1") // subscribeされていなくてもイベントを流せる
 subject.subscribe(onNext: { print("subscribe: \($0)") })
 subject.onNext("2")
 subject.onCompleted()
-subject.onNext("3")
+subject.onNext("3") // Observableと同じく既にonCompletedが呼ばれているのでイベントが流れない
 
 出力
 A subscribe: 2
 ```
 
-`Subject`も`Observable`であり、`onNext, onCompleted, onError`を呼ぶことができます。
-しかし、`onCompleted, onError`のどちらかが呼ばれてしまうと、その後はイベントを流すことができません。
-そのため、上記のコードでは`subscribe`した後から`onCompleted`が呼ばれる前までの`onNext`のみ受け取っています。
+基本はObservableと同じ性質であるため、onNext,onCompleted,onErrorを呼ぶことができます。
+また、onCompleted,onErrorのどちらかが呼ばれてしまうと、その後はイベントを流すことができません。
+そのため、上記のコードではsubscribeした後からonCompletedが呼ばれる前までのonNextのみの通知をObserverが受け取っています。
 
 ### Subjectの種類
 
@@ -319,13 +319,13 @@ A subscribe: 2
 | PublishSubject | キャッシュせず、来たイベントをそのまま通知する |
 | ReplaySubject | 指定した値だけキャッシュし、subscribe時に直近のキャッシュしたものを通知する |
 | BehaviorSubject | 初期値を持つことができ、1つだけキャッシュし、subscribe時に直近のキャッシュしたものを通知する |
-| Variable | 変数のように扱うことができ、valueプロパティを変更するとonNextへ通知する |
+| Variable | 変数のように扱うことができ、valueプロパティを変更するとonNextへ通知する ※RxSwift独自 |
 
 ## HotとCold
 
-基本的に`Observable`は、`subscribe`するまで値が流れません。
-その例外として`Subject`を利用した`Observable`は、常に値が流れています。
-これを`Rx`の概念では`Hot`,`Cold`と言います。
+基本的にObservableは、subscribeするまでイベントが流れません。
+その例外としてSubjectを利用したObservableは、常にイベントが流れています。
+これを **ReactiveX** の概念では **Hot,Cold** と言います。
 
 ```
 let hotObservable = Observable
@@ -339,13 +339,12 @@ hotObservable.subscribe(onNext: { i in
 hotObservable.connect()
 ```
 
-上記のコードは`publish`という`Cold`->`Hot`に変換する`Operator`を使った例です。
-`Cold`->`Hot`の変換は、`multicast`というメソッドで`Cold`な`Observable`の`subscribe`時に`Subject`で包む仕組みです。
-また、`Hot`な`Observable`は自ら`subscribe`を呼び出す性質を持ちます
+上記の **publish** というOperatorは **Cold->Hot** に変換します。
+Cold->Hotの変換は、multicastというメソッドで **ColdなObservableのsubscribe時にSubjectで包む** 仕組みです。
+また、HotなObservableは **自らsubscribeを呼び出す** 性質を持ちます
 
-しかし、上記のコードで`o.subscribe()`した時点では、実は値は流れてきません。
-`publish`で返ってくるのは`ConnectableObservable`という型で、`connect`されることで初めて値が流れます。
-その時に`subscribe`されているものに対して値が流れます。
+しかし、上記のコードでhotObservable.subscribe()した時点では流れていません。
+publishで返ってくるのはConnectableObservableという型で、connectされることで初めて流れ出し、その時にsubscribeされているものに対してイベントが流れます。
 
 ```
 let hotObservable = Observable
@@ -361,10 +360,10 @@ onNext: 2
 onNext: 3
 ```
 
-また、`subscribe`されなくとも値は流れることは上記のコードの出力見ればわかるでしょう。
+また、subscribeされなくとも値は流れることは上記のコードの出力見ればわかるでしょう。
 
-`Hot`,`Cold`の違いは、他にもあります。
-例えば、`Hot`な`Observable`は複数の`subscribe`に対してストリームを共有しています。
+Hot,Coldの違いは、他にもあります。
+例えば、HotなObservableは複数のsubscribeに対して流れを共有しています。
 
 ```
 var count = 0
@@ -430,15 +429,15 @@ doOnNext 3, count:6
 2 subscribe onNext 3
 ```
 
-そのため、上記の出力のように複数の`subscribe`があった場合に、`1, 2, 3`がそれぞれイベントが共有され、2つの`subscribe`に対して **同時** に流れています。
-`Cold`の場合はイベントが複製され、それぞれの`subscribe`に対して **別々** に流れています。
+流れを共有しているため、上記の出力のように複数のsubscribeがあった場合に`1, 2, 3`がそれぞれイベントが共有され、2つのsubscribeに対して **同時** に流れています。
+Coldの場合はイベントが複製され、それぞれのsubscribeに対して **別々** に流れています。
 
 ### Cold -> Hot変換で注意すべきこと
 
-`Cold`->`Hot`変換した`ConnectableObservable`では注意しないといけないことがあります。
-それは、`connect`した`Observable`を`dispose`しないと開放されないということです。
-しかし、正しいタイミングを気にしながら`dispose`するのはとても難しいことです。
-そこで`ConnectableObservable`は`refCount()`を持っています。
+Cold->Hot変換したConnectableObservableでは注意しないといけないことがあります。
+それは、 **connectしたObservableをdispose(unSubscribe)しないと開放されない** ということです。
+しかし、正しいタイミングを気にしながらdisposeするのはとても難しいことです。
+そこで、ConnectableObservableはrefCount()というメソッドを持っています。
 
 ```
 let hotObservable = Observable
@@ -456,17 +455,18 @@ subscribe onNext 2
 subscribe onNext 3
 ```
 
-`refCount`を呼び出すと、内部で`connect`が呼び出しています。
-そして`refCount`は全ての`subscribe`が`dispose`されると、自動で`Observable`を`dispose`してくれます。
-これはiOSで使われているメモリ管理の`ARC`と同じ仕組みで`subscribe`毎にカウントアップし、`dispose`毎にカウントダウンされます。
-そしてカウントが`0`になった時に`dispose`されるため、`dispose`のタイミングを意識しなくて良くなります。
+**refCount()** を呼び出すと、内部でconnectが呼び出しています。
+そして、**全てのsubscribeがdisposeされると、自動でObservableをdispose** してくれます。
+これはiOSで使われているメモリ管理のARCと同じ仕組みで **subscribe毎にカウントアップし、dispose毎にカウントダウン** されます。
+そしてカウントが0になった時にdisposeされるため、disposeのタイミングを意識しなくて良くなります。
 
-`ConnectableObservable`は`connect`を呼び出した時に`subscribe`されているものに対して、値を流すと説明しました。
-上記のコードは`refCount`内で`connect`されていて、その時点では`subscribe`されていません。
-しかし、その後に呼び出した`subscribe`に値が流れています。
-これは`refCount`による作用で、`refCount`を呼び出すと`connect`されているのにも関わらず、それ以降`subscribe`されるまで値が流れないようになります。
+> publishで返ってくるのはConnectableObservableという型で、connectされることで初めて流れ出し、その時にsubscribeされているものに対してイベントが流れます。
 
-では、複数の`subscribe`をしてみましょう。
+と説明しました。上記のコードはrefCount内でconnectされていて、その時点ではsubscribeされていません。
+しかし、その後に呼び出したsubscribeに値が流れています。
+これはrefCountによる作用で、refCount()を呼び出すと **connectされているのにも関わらず、それ以降subscribeされるまで値が流れない** ようになります。
+
+では、次に複数のsubscribeをしてみましょう。
 
 ```
 let hotObservable = Observable
@@ -487,9 +487,8 @@ hotObservable.subscribe(onNext: { i in
 1 subscribe onNext 3
 ```
 
-2つ`subscribe`しているはずが、最初の`subscribe`にしか流れていません。
-これはストリームを共有しているため、初めに`subscribe`した時点でそれに対して値が流れ
-2つ目の`subscribe`の時点では、既に流れたイベントは流れ終えているため流れないということです。
+2つsubscribeしているはずが、最初のsubscribeにしかイベントが流れていません。
+これは流れを共有しているため、初めにsubscribeした時点でそれに対してイベントが流れ、2つ目のsubscribeの時点では、既に流れたイベントは流れ終えているため流れないということです。
 
 ```
 var count = 0
@@ -522,33 +521,24 @@ doOnNext 3, count:3
 2 subscribe onNext 3
 ```
 
-`publish`は`PublishSubject`を利用するのに対して、`replay`は`ReplaySubject`を利用します。
-これにより`publish`を`replay(3)`に変えることで、上記の出力のように2つ目の`subscribe`にも値が流れます。
-3つ流れる値があるため、`replay(3)`としていますが、例えば`replay(1)`にすると値は`1`しか流れません。
+これはreplyというCold->Hot変換のOperatorを使ったコードです。
+publishはPublishSubjectを利用するのに対して、replayはReplaySubjectを利用します。
+ReplaySubjectは指定した数のキャッシュを持つため、上記の出力のように2つ目のsubscribeにもキャッシュしてあるイベントが流れます。
+3つ流れるイベントがあるため、replay(3)としていますが、例えばreplay(1)にするとイベントはonNext(1)しか流れません。
 
-また、`.publish().refCount()`は`share()`、`.replay().refCount()`は`shareReplay()`というエイリアス的なメソッドが用意されています。
-ここまでは動作を理解するためにそれぞれを呼んでいましたが、動作を理解した上では`share(), shareReplay()`を使った方が良いでしょう。
+また、 **.publish().refCount()はshare()** 、 **.replay().refCount()はshareReplay()** というエイリアス的なメソッドが用意されています。
+ここまでは動作を理解するためにそれぞれを呼んでいましたが、動作を理解した上ではshare(),shareReplay()を使った方が良いでしょう。
 
-## Observable.subscribe()の動作の流れ
+## Observable.subscribe()の動作
 
-`Observable.subscribe()`するとどんな流れで実行されるのか見ていきます。
+これまで、Obserbavle,Operator,Schedulerのそれぞれの章で
 
-Observableについての章では
+> Observableはストリームで、subscribeされることで初めてストリームが流れます。
+> OperatorはObservableをsubscribeし、Observableを生成します。
+> **observeOnは下方向** に適応し、 **subscribeOnは上方向** に適応されるぐらいの認識で大丈夫です。
 
-> 殆どの`Operator`は`Observable.subscribe`を呼び出し、`Observable`を生成します。
-
-このように説明し、Operatorの章では
-
-> `subscribe`することで初めて生成した`Observable`が流れ出します。
-
-このように説明し、Schedulerの章では
-
-> きちんと`observeOn`,`subscribeOn`の動作を理解をするためには、`Observable.subscribe()`の動作を理解する必要があり...
-> `observeOn`は下方向に適応し、`subscribeOn`は上方向に適応されるぐらいの認識...
-
-このように説明しました。
-実はこれらが動作の流れの全てです。もう少しコードを元に動作を詳しく見ていきましょう。
-まずは`Observable.subscribe()`するとどうなるのか。
+このように説明しました。そして、実はこれらが動作の流れの全体です。
+Observable.subscribe()するとどんな流れで実行されるのか、もう少しコードを元に動作を詳しく見ていきましょう。
 
 ```
 Observable.from(1...3)
