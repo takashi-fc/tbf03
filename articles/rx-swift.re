@@ -6,11 +6,11 @@
 
 みなさん、RxSwift@<fn>{1}使ってますか？
 プロミス・データバインディング・イベントバス・リストをあれこれする処理など色々できて良いですよね。
-ただ、「全然分からない。俺は雰囲気でRxSwiftを使っている。」状態で使っていませんか？
-恥ずかしながら私は完全に雰囲気で使っていました。
+ただ、その使い方ってあってるんでしょうか？「全然分からない。俺は雰囲気でRxSwiftを使っている。」状態で使っていませんか？
+恥ずかしながら私は完全に雰囲気で使ってしまっていました。
 本章は（私含めて）その状態からの脱却を目指す第一弾です。
-今回は@<tt>{RxSwift}を使う上での基本を簡単に説明し、どうやって動いているのかを中心に学んでいきます。
-また、本章の内容は@<tt>{RxSwift}のgithubリポジトリにある@<tt>{Rx.playground}@<fn>{2}を主に参考にしています。
+今回は @<strong>{RxSwift} を使う上での基本を簡単に説明し、どうやって動いているのかを中心に学んでいきます。
+また、本章の内容はRxSwiftのgithubリポジトリにある @<strong>{Rx.playground} @<fn>{2}を主に参考にしています。
 
 
 
@@ -61,10 +61,6 @@ RxSwiftを使うと何が嬉しいのかというと予め道とゴールを決�
 重要なのは、 @<strong>{蛇口は開かないと水が流れない} という点です。Observableはsubscribeが呼び出される（蛇口が開く）ことで、 @<strong>{初めて} 流れ出します。
 （初めてという言葉を強調したのは、例外も存在するからです。これについてはまた後で説明します。）
 そして、Observableに流れているイベントはOperator（水路）を通り、subscribeに引数として渡したObserverのonNext,onError,onCompleteに流れ着きます。
-
-
-
-[イメージ図]
 
 
 == Observableについて
@@ -662,6 +658,7 @@ TweetService.requestTweet(by: ツイートのID) // Observable<String>を返す
 
 
 これはSchedulerの章で最初に載せた、ツイートを取得するコードです。
+このコードを実行すると、バックグラウンドでツイートを取得し、文字列からモデルへ変換します。そして、メインスレッドでそのモデルを使い描画します。
 
 
 
@@ -673,7 +670,7 @@ Observableは通知する、Observerは購読する立場にあります。
 
 
 
-何が言いたいかというと、一連のOperatorが繋がれた最後にsubscribeすると、繋がれたOperatorを最初にObservableを生成したところまで購読(subscribe)していきます。これがコードでは登るようなイメージになります。
+何が言いたいかというと、一連のOperatorが繋がれた最後にsubscribeすると、繋がれたOperatorを最初にObservableを生成したところまで購読(subscribe)していきます。これがコードでは上るようなイメージになります。
 そして、頂点に着くとsubscribeを呼び出したObserverに対してon(event)によってイベントを通知していきます。これがコード上では下るようなイメージになります。
 その中で、subscribeOnはsubscribe()の呼び出しにSchedulerを適応し、observeOnはon(event)の呼び出しにSchedulerを適応します。
 そのため、subscribeOnは上方向に適応され、observeOnは下方向に適応されます。
@@ -691,10 +688,9 @@ Observableは通知する、Observerは購読する立場にあります。
 == Operatorを自作してみる
 
 
-さて、基本的な知識を学んできました。
-ここでもう少し理解を深めるために、今までに使ってきた@<tt>{Operator}を作ってみましょう。
-@<tt>{Operator}は@<tt>{ObservableType}の@<tt>{extension}として実装されています。
-ちなみに@<tt>{Observable}を最初に生成する@<tt>{of, from, create}などのメソッドは@<tt>{Observable}の@<tt>{extension}として実装されています。
+ここでもう少し理解を深めるために、今までに使ってきたOperatorを作ってみましょう。
+OperatorはObservableTypeのextensionとして実装されています。
+ちなみにObservableを最初に生成するof,from,createなどのメソッドはObservableのextensionとして実装されています。
 
 
 //emlist{
@@ -711,14 +707,12 @@ extension ObservableType {
         return Observable.create { observer in
             Logger.debug("subscribed \(identifier)")
             let subscription = self.subscribe { e in
-                Logger.debug("event \(identifier)  \(e)")
+                Logger.debug("event \(identifier) \(e)")
                 switch e {
                 case .next(let value):
                     observer.on(.next(value))
-
                 case .error(let error):
                     observer.on(.error(error))
-
                 case .completed:
                     observer.on(.completed)
                 }
@@ -744,10 +738,10 @@ disposing from
 //}
 
 
-上記のコードは既存で存在する@<tt>{debug}という@<tt>{Operator}を模して、独自ロガーで出力するようにしたものです。
-既存の@<tt>{Operator}を見ると@<tt>{class}として実装されていますが、@<tt>{create}を利用することで簡単に独自の@<tt>{Operator}を作ることができます。
-@<tt>{create}に渡すクロージャの中で、@<tt>{ObservableType}に宣言されている@<tt>{subscribe}を呼び出すことで、自身が@<tt>{subscribe}された時の動作を指定できます。
-そこで各イベントの時に独自ロガーを使ってメッセージを出力しています。
+上記のコードは既存で存在するdebugというOperatorを模して、独自ロガーで出力するようにしたものです。
+既存のOperatorを見るとDebug(Observable),DebugSink(Observer)というクラスで実装されていますが、createを利用することで簡単に独自のOperatorを作ることができます。
+createに渡すクロージャがsubscribeされた時の動作です。subscribeされるとログを流し自身が参照している（1つ前にチェーンされている）Observableをsubscribeします。
+そのsubscribe処理に割り込み、それぞれのイベントでログを流しています。
 
 
 == おわりに
@@ -755,7 +749,7 @@ disposing from
 
 どうでしたか？「全然分からない。俺は雰囲気でObservableを使っている。」状態からは抜け出せたでしょうか？
 本当は@<tt>{ユースケースで学ぶRxSwift}というタイトルで書こうと思ったのですが、まず基本を理解しないといけないなと思って書いているとあっという間にページが埋まってしまいました。
-また訪れるであろう技術書典で、今度こそかければと思っています。
+また訪れるであろう技術書典で、第二弾として書きたいなと思っています。
 
 
 
