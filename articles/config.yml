@@ -98,7 +98,7 @@ urnid: urn:uid:https://github.com/takashi-fc/cho02
 htmlext: html
 #
 # CSSファイル(配列で複数指定可、yamlファイルおよびRe:VIEWファイルを置いたディレクトリにあること)
-stylesheet: ["style.css"]
+stylesheet: ["style.scss"]
 
 # ePUBのバージョン (2か3)
 epubversion: 3
@@ -107,12 +107,12 @@ epubversion: 3
 htmlversion: 5
 
 # 目次として抽出する見出しレベル
-toclevel: 2
+toclevel: 3
 
 # 採番の設定。採番させたくない見出しには「==[nonum]」のようにnonum指定をする
 #
 # 本文でセクション番号を表示する見出しレベル
-secnolevel: 2
+secnolevel: 3
 
 # 以下のsecnolevelはまだ未実装。
 # 前付でセクション番号を表示する見出しレベル(未実装)
