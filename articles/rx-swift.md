@@ -6,9 +6,9 @@
 プロミス・データバインディング・イベントバス・リストをあれこれする処理など色々できて良いですよね。
 ただ、「全然分からない。俺は雰囲気でRxSwiftを使っている。」状態で使っていませんか？
 恥ずかしながら私は完全に雰囲気で使っていました。
-本章は、（私含めて）そこからの脱却を目指す第一弾です。
-今回は、`RxSwift`を使う上での基本を抑えつつ、どうやって動いているのかを学んでいきます。
-本章の内容は、`RxSwift`のgithubリポジトリにある`Rx.playground`[^2]を主に参考にしています。
+本章は（私含めて）その状態からの脱却を目指す第一弾です。
+今回は`RxSwift`を使う上での基本を簡単に説明し、どうやって動いているのかを中心に学んでいきます。
+また、本章の内容は`RxSwift`のgithubリポジトリにある`Rx.playground`[^2]を主に参考にしています。
 
 対象とする読者のイメージ
 
@@ -40,8 +40,8 @@ ObserverはObserverパターンと同じ意味合いで使われ、通知され�
 Observableに流れているイベントが、Operatorという道を通って、Observerへ到達します。
 RxSwiftを使うと何が嬉しいのかというと予め道とゴールを決めておき、そこに値が流れてくることができるため、データフローが明確になります。
 
-​​イメージの付きやすいように例えると　**Observableは蛇口**　、**Operatorは水路**　のような感じです。重要なのは、 **蛇口は開かないと水が流れない** という点です。
-Observableはsubscribeが呼び出される（蛇口が開く）ことで、 **初めて** 流れ出します。
+​​イメージの付きやすいように例えると　**Observableは蛇口**　、**Operatorは水路**　のような感じです。蛇口から水が流れ、水路でキレイにしたり・混ぜたり様々な処理が行われます。
+重要なのは、 **蛇口は開かないと水が流れない** という点です。Observableはsubscribeが呼び出される（蛇口が開く）ことで、 **初めて** 流れ出します。
 （初めてという言葉を強調したのは、例外も存在するからです。これについてはまた後で説明します。）
 そして、Observableに流れているイベントはOperator（水路）を通り、subscribeに引数として渡したObserverのonNext,onError,onCompleteに流れ着きます。
 
@@ -49,21 +49,24 @@ Observableはsubscribeが呼び出される（蛇口が開く）ことで、 **�
 
 ## Observableについて
 
-Observableはストリームで、subscribeされることで初めてストリームが流れます。
+Observableはストリームで、subscribeされることで初めてストリームにイベントが流れます。
 そのストリームに値をonNext,onError,onCompletedというイベントに包んで、購読しているObserverへ通知します。
 そしてonNextは複数回、onEror,onCompleteは一度だけ通知することができます。
 onErrorもしくはonCompletedを呼んだ後は一切イベントが流れません。
 
+また、ObservableはをOperatorによって生成され、Operatorによって変換されます。
+
 ## Operatorについて
 
 OperatorはObservableをsubscribeし、Observableを生成します。
+そのため、Operatorは通知をする側(Observable)、購読する側(Observer)両方の性質を持ちます。
 
 ```
 Observable.of(1, 2, 3).map { $0 * $0 }.filter { $0 % 2 == 0 }
 ```
 
 例えば、上記のコードの **of** や **map** が **Operator** です。
-他にも、Observableを生成するOperatorはjust, create、変換するOperatorはmap, flatMap, scanなどがあります。
+他にも、Observableを生成するOperatorはjust, create、変換・結合するOperatorはmap, flatMap, scanなど様々な種類があります。
 Operatorは生成・変換するとObservableが返ってくるため、Observable,Operator同士は繋ぐことができます。
 
 ## Observerについて
@@ -108,10 +111,10 @@ RxSwift3.x系からは`Observer`の他に、`Single`, `Completable`, `Maybe`が�
 この時、1~3はバックグラウンドで、4はメインスレッドで処理をするのが適切です。
 そのスレッドの制御をする役割を持つのが **Scheduler** です。
 **Scheduler** はiOSの仕組みとして存在するGCD（Grand Central Dispatch）を利用することでスレッド制御を実現しています。
-そのSchedulerを指定するためには **observeOn** , **subscribeOn** メソッドを利用します。
+そのSchedulerを指定するためには **observeOn** , **subscribeOn** というOperatorを利用します。
 
 ```
-TweetService.requestTweet(by: ツイートのID)　　　　　　　　              　 // 1
+TweetService.requestTweet(by: ツイートのID) // Observable<String>を返す   // 1
             .map { JSONStringをTweetモデルへ変換($0) }                   // 2,3
             .subscribeOn(background-scheduler)
             .observeOn(main-scheduler)
@@ -537,43 +540,34 @@ ReplaySubjectは指定した数のキャッシュを持つため、上記の出�
 > OperatorはObservableをsubscribeし、Observableを生成します。
 > **observeOnは下方向** に適応し、 **subscribeOnは上方向** に適応されるぐらいの認識で大丈夫です。
 
-このように説明しました。そして、実はこれらが動作の流れの全体です。
-Observable.subscribe()するとどんな流れで実行されるのか、もう少しコードを元に動作を詳しく見ていきましょう。
+このように説明しました。これで全体の大まかな流れを表すことができています。
+ただ、Observable.subscribe()するとどんな流れで実行されるのか、もう少し細かく見ていきましょう。
 
 ```
-Observable.from(1...3)
-          .subscribeOn(concurrentDispatchQueueScheduler)
-          .map { $0 + 1 }
-          .filter { $0 % 2 == 0 }
-          .observeOn(mainScheduler)
-          .subscribe(onNext: { i in
-              print("onNext \(i)")
-          }, onError: nil, onCompleted: nil, onDisposed: nil)
+TweetService.requestTweet(by: ツイートのID) // Observable<String>を返す
+            .map { JSONStringをTweetモデルへ変換($0) }
+            .subscribeOn(concurrentDispatchQueueScheduler)
+            .observeOn(mainScheduler)
+            .subscribe(onNext: { label.text = $0.ツイートのテキスト変数 })
 ```
 
-1. `subscribe`により、`map { $0 + 1 }`が`subscribe`される 
-2. `map`により、`Observable.from(1...3)`が`subscribe`される
+これはSchedulerの章で最初に載せた、ツイートを取得するコードです。
 
-このように`.subscribe()`を呼び出した箇所から、上方向に`subscribe`していきます。
-この時の`Scheduler`の指定が`subscribeOn`になります。
-上記のコードでは、**map, filterはsubscribe()が呼び出されたスレッド、from()はsubscribeOn()で指定したスレッドでsubscribeが呼び出されます。**
-そして、ここから下方向へ値が流れていきます。
-`Observable`は値を一つ一つ流していくため
+まず当然ですが、実行するためには最低限必要なObservableとObserverが出てきますね。
+Observableは通知する、Observerは購読する立場にあります。
+この **通知する** というのは、 **on(event)** メソッドを呼び出すということです。
+また、 **購読する** というのは、 **subscribe()** メソッドを呼び出すということです。
+そして、購読しなければ通知することはありません。
 
-1. `from(1...3)`により`onNext`に`1`が流れる
-2. `map { $0 + 1 }`により`2`になる
-3. `filter { $0 % 2 == 0 }`により結果が`true`のため、通過する
-4. `subscribe`に指定された`Observer`の`onNext`で`onNext 1`と出力される
-5. 値が最後の`Observer`まで到達したため、`from(1...3)`により`onNext`に`2`が流れる
-6. 値が全て流れるまで繰り返される
-7. 全てが終わると`dispose`が呼ばれ、開放される
+何が言いたいかというと、一連のOperatorが繋がれた最後にsubscribeすると、繋がれたOperatorを最初にObservableを生成したところまで購読(subscribe)していきます。これがコードでは登るようなイメージになります。
+そして、頂点に着くとsubscribeを呼び出したObserverに対してon(event)によってイベントを通知していきます。これがコード上では下るようなイメージになります。
+その中で、subscribeOnはsubscribe()の呼び出しにSchedulerを適応し、observeOnはon(event)の呼び出しにSchedulerを適応します。
+そのため、subscribeOnは上方向に適応され、observeOnは下方向に適応されます。
 
-このように、初めの`Observable`から、下方向に`onXXX`を呼び出していきます。
-この時の`Scheduler`の指定が`observeOn`になります。
-上記のコードでは、**from, map, filterはfromのonXXXが呼び出されたスレッド、subscribeで指定されたObserverはobserveOn()で指定したスレッドでonXXXが呼び出されます。**
+また、Observableに流れるイベントはそれぞれが繋がれたOperatorを1つずつ通り、最後のObserverまで到達します。
+繋がれたOperatorで全てのイベントが処理されてから次のOperatorへ行くのではないということです。
 
-つまり、`subscribe`された時にそこから上へ進み、一番上の`Observable`まで到達したら下へ流れていきます。
-そのため、`subscribeOn`は上方向に`subscribe`される時に適応され、`observeOn`は下方向に`onXXX`される時に適応されるということです。
+冒頭でも言いましたが、予めOperatorという道とObserverというゴールを決めておき、そこに値がイベントに包まれて流れてくることができるため、データフローが明確になります。
 
 ## Operatorを自作してみる
 
