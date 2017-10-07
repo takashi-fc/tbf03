@@ -17,5 +17,6 @@ fi
 set -ux
 md2review $FILENAME > $1.re
 sed -i -e "s/emlist\[\]\[\(.*\)\]/list[\1][\1]/" $1.re
+sed -i -e "s/<br>/@<br>{}/" $1.re
 review-pdfmaker config.yml
 open tbf03.pdf
