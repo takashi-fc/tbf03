@@ -36,7 +36,7 @@ Apple Pencilは2015年の11月に発売され、2017年9月現在のところ、
 ![Altitude&Azimuth](images/azimuth_altitude.png)
 
 Altitudeは、高さを意味します。  
-図3.1を見ていただくとわかるように、Cをペン先と見た場合に、Altitudeはペンの傾きを意味しています。  
+図2.1を見ていただくとわかるように、Cをペン先と見た場合に、Altitudeはペンの傾きを意味しています。  
 またAzimuthは、方位角を意味します。  
 同じく図で見た場合に、Azimuthはペンの向きを指していることがわかります。  
 
